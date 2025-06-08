@@ -4,39 +4,41 @@ import plotly.express as px
 from fpdf import FPDF
 import base64
 
-# --- CSS: Cottage Flowery Theme with readability ---
+# --- CSS: Soft Pink Background + Clean UI ---
 page_bg = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
 
 body {
-    background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80');
-    background-size: cover;
-    background-attachment: fixed;
+    background-color: #f8d7da;  /* soft pink */
     font-family: 'Quicksand', sans-serif;
-    color: #2f2f2f;
+    color: #3e2723;
+    margin: 0;
+    padding: 0;
 }
 
 .main-container {
-    background: rgba(255, 255, 255, 0.92);
+    background: white;
     padding: 30px;
     border-radius: 20px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     margin-bottom: 30px;
 }
 
 h1, h2, h3 {
-    color: #4caf50;
+    color: #ad1457;
     font-weight: 700;
+    margin-bottom: 15px;
 }
 
 h4 {
-    color: #e91e63;
+    color: #880e4f;
+    margin-bottom: 10px;
 }
 
 .stButton > button {
-    background-color: #ffcccb;
-    color: #2e7d32;
+    background-color: #f48fb1;
+    color: white;
     border: none;
     border-radius: 12px;
     padding: 8px 20px;
@@ -47,15 +49,11 @@ h4 {
 }
 
 .stButton > button:hover {
-    background-color: #ffe0b2;
-    color: #1b5e20;
+    background-color: #ec407a;
 }
 
 .element-container {
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-    padding: 12px;
+    padding: 12px 0;
     margin-bottom: 25px;
 }
 
@@ -64,17 +62,23 @@ hr {
     border-top: 1px solid #ddd;
     margin: 40px 0;
 }
+
+/* Hide empty Streamlit components that sometimes show empty bubbles */
+[data-testid="stExpander"] > div > div:empty,
+[data-testid="stVerticalBlock"] > div > div:empty,
+div.css-1v0mbdj.etr89bj2 {
+    display: none !important;
+}
 </style>
 """
 
-st.set_page_config(page_title="🌷 Cottage Campaign Dashboard", layout="wide")
+st.set_page_config(page_title="🌸 Cottage Campaign Dashboard", layout="wide")
 st.markdown(page_bg, unsafe_allow_html=True)
 
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
-st.markdown("## 🐝 Campaign Analysis Dashboard 🌼")
-st.markdown("*Visualize campaign performance and extract actionable insights.* 🍃")
+st.markdown("## 🐝 Campaign Analysis Dashboard 🌸")
+st.markdown("*Visualize campaign performance and extract actionable insights.*")
 
-# --- File upload
 uploaded_file = st.file_uploader("📁 Upload your CSV", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -94,8 +98,7 @@ if uploaded_file:
         st.warning("⚠️ The uploaded data is empty after cleaning.")
         st.stop()
 
-    # --- Filters
-    st.markdown("### 🎯 Filter Your Data ✏️")
+    st.markdown("### 🎯 Filter Your Data")
     platforms = ['All'] + sorted(df['platform'].dropna().unique())
     sentiments = ['All'] + sorted(df['sentiment'].dropna().unique())
     locations = ['All'] + sorted(df['location'].dropna().unique())
@@ -125,100 +128,89 @@ if uploaded_file:
     if filtered.empty:
         st.warning("⚠️ No data matches your filters. Please adjust filters.")
     else:
-        # --- Helper insights
+
         def get_top_sentiments(df):
-            if df.empty: return ["No data available."]
-            return [f"🔎 {s}: {c}" for s, c in df['sentiment'].value_counts().head(3).items()]
+            top3 = df['sentiment'].value_counts().head(3)
+            return [f"🔎 {s}: {c} mentions" for s, c in top3.items()]
 
         def get_trends(df):
-            if df.empty: return ["No data available."]
             trend = df.groupby('date')['engagements'].sum()
             if len(trend) < 2:
                 return [f"📈 Only {len(trend)} day(s) data available for trend."]
-            increase = trend.pct_change().fillna(0)
-            top = trend.sort_values(ascending=False).head(3)
-            out = [f"📈 Highest on {d.strftime('%Y-%m-%d')}: {v}" for d, v in top.items()]
-            last_change = increase.iloc[-1]
-            arrow = '⬆️' if last_change > 0 else ('⬇️' if last_change < 0 else '➡️')
-            out.append(f"📊 Recent trend: {arrow} {abs(last_change)*100:.2f}%")
+            top3_dates = trend.sort_values(ascending=False).head(3)
+            out = [f"📈 Highest engagement on {d.strftime('%Y-%m-%d')}: {v}" for d, v in top3_dates.items()]
+            change = trend.pct_change().fillna(0).iloc[-1]
+            arrow = '⬆️' if change > 0 else ('⬇️' if change < 0 else '➡️')
+            out.append(f"📊 Recent engagement trend: {arrow} {abs(change)*100:.2f}% change from previous day")
             return out
 
         def get_platforms(df):
-            if df.empty: return ["No data available."]
-            return [f"📱 {p}: {v} engagements" for p, v in df.groupby('platform')['engagements'].sum().sort_values(ascending=False).head(3).items()]
+            top3 = df.groupby('platform')['engagements'].sum().sort_values(ascending=False).head(3)
+            return [f"📱 {p}: {v} total engagements" for p, v in top3.items()]
 
         def get_media_mix(df):
-            if df.empty: return ["No data available."]
-            return [f"🎞️ {m}: {v} entries" for m, v in df['media_type'].value_counts().head(3).items()]
+            top3 = df['media_type'].value_counts().head(3)
+            return [f"🎞️ {m}: {v} posts" for m, v in top3.items()]
 
         def get_locations(df):
-            if df.empty: return ["No data available."]
-            return [f"📍 {l}: {v} engagements" for l, v in df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(3).items()]
+            top3 = df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(3)
+            return [f"📍 {l}: {v} engagements" for l, v in top3.items()]
 
-        # --- Display charts
-        st.markdown("## 📊 Visualizations")
+        st.markdown("## 📊 Visualizations and Insights")
+
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown("#### 🧁 Sentiment Breakdown 🌷")
-            if filtered['sentiment'].nunique() > 0:
-                fig1 = px.pie(filtered, names='sentiment', title='', color_discrete_sequence=px.colors.sequential.Pinkyl)
-                st.plotly_chart(fig1, use_container_width=True)
-            else:
-                st.info("No sentiment data to display.")
+            st.markdown("### 🧁 Sentiment Breakdown")
+            fig1 = px.pie(filtered, names='sentiment', color_discrete_sequence=px.colors.sequential.Pinkyl)
+            st.plotly_chart(fig1, use_container_width=True)
+            st.markdown("**Top 3 Sentiments:**")
             for s in get_top_sentiments(filtered):
                 st.markdown(f"- {s}")
 
         with col2:
-            st.markdown("#### 🌱 Engagement Trend 🍃")
+            st.markdown("### 🌱 Engagement Trend")
             trend = filtered.groupby('date')['engagements'].sum().reset_index()
-            if len(trend) > 0:
-                fig2 = px.line(trend, x='date', y='engagements', line_shape='spline', markers=True,
-                               color_discrete_sequence=['#4caf50'])
-                st.plotly_chart(fig2, use_container_width=True)
-            else:
-                st.info("No engagement trend data to display.")
+            fig2 = px.line(trend, x='date', y='engagements', line_shape='spline', markers=True,
+                           color_discrete_sequence=['#ad1457'])
+            st.plotly_chart(fig2, use_container_width=True)
+            st.markdown("**Top 3 Engagement Trend Insights:**")
             for t in get_trends(filtered):
                 st.markdown(f"- {t}")
 
-        st.markdown("### 🗂️ Platforms & Media 🎞️")
         col3, col4 = st.columns(2)
         with col3:
+            st.markdown("### 🗂️ Platforms by Engagement")
             platform_data = filtered.groupby('platform')['engagements'].sum().reset_index()
-            if not platform_data.empty:
-                fig3 = px.bar(platform_data, x='platform', y='engagements', color='platform',
-                              color_discrete_sequence=px.colors.qualitative.Set2)
-                st.plotly_chart(fig3, use_container_width=True)
-            else:
-                st.info("No platform engagement data to display.")
+            fig3 = px.bar(platform_data, x='platform', y='engagements', color='platform',
+                          color_discrete_sequence=px.colors.qualitative.Set2)
+            st.plotly_chart(fig3, use_container_width=True)
+            st.markdown("**Top 3 Platforms:**")
             for p in get_platforms(filtered):
                 st.markdown(f"- {p}")
 
         with col4:
-            if filtered['media_type'].nunique() > 0:
-                fig4 = px.pie(filtered, names='media_type', title='', color_discrete_sequence=px.colors.sequential.RdPu)
-                st.plotly_chart(fig4, use_container_width=True)
-            else:
-                st.info("No media type data to display.")
+            st.markdown("### 🎞️ Media Types Breakdown")
+            fig4 = px.pie(filtered, names='media_type', color_discrete_sequence=px.colors.sequential.RdPu)
+            st.plotly_chart(fig4, use_container_width=True)
+            st.markdown("**Top 3 Media Types:**")
             for m in get_media_mix(filtered):
                 st.markdown(f"- {m}")
 
-        st.markdown("### 📍 Top Locations 🗺️")
+        st.markdown("### 📍 Top Locations by Engagement")
         loc = filtered.groupby('location')['engagements'].sum().sort_values(ascending=False).head(5).reset_index()
-        if not loc.empty:
-            fig5 = px.bar(loc, x='location', y='engagements', color='location',
-                          color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig5, use_container_width=True)
-        else:
-            st.info("No location engagement data to display.")
+        fig5 = px.bar(loc, x='location', y='engagements', color='location',
+                      color_discrete_sequence=px.colors.qualitative.Pastel)
+        st.plotly_chart(fig5, use_container_width=True)
+        st.markdown("**Top 3 Locations:**")
         for l in get_locations(filtered):
             st.markdown(f"- {l}")
 
-        # --- PDF Generator
+        # PDF Export
         class PDFReport(FPDF):
             def header(self):
                 self.set_font('Helvetica', 'B', 14)
-                self.cell(0, 10, 'Campaign Insights Report 🌼', 0, 1, 'C')
+                self.cell(0, 10, 'Campaign Insights Report 🌸', 0, 1, 'C')
             def chapter_title(self, title):
                 self.set_font('Helvetica', 'B', 12)
                 self.cell(0, 10, title, 0, 1)
@@ -242,12 +234,11 @@ if uploaded_file:
             pdf.chapter_body("\n".join(get_locations(filtered)))
             return pdf.output(dest='S').encode('latin1')
 
-        st.markdown("### 📤 Export")
-        if st.button("📄 Export to PDF 🌸"):
+        st.markdown("### 📤 Export Report")
+        if st.button("📄 Export to PDF"):
             b64 = base64.b64encode(create_pdf()).decode()
             href = f'<a href="data:application/octet-stream;base64,{b64}" download="campaign_report.pdf">📥 Download PDF Report</a>'
             st.markdown(href, unsafe_allow_html=True)
 
-st.markdown("<hr><p style='text-align:center'>🌷 Hope this helped! Made with 💗 by Zulfa 🐣</p>", unsafe_allow_html=True)
+st.markdown("<hr><p style='text-align:center; color:#880e4f;'>🌸 Powered by Your Friendly Bot 💗</p>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
-
