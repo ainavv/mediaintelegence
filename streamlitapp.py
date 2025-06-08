@@ -1,480 +1,328 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campaign Analysis 🌸</title>
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from io import StringIO
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="Campaign Analysis Dashboard 🌸",
+    page_icon="🌸",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- Custom Styling ---
+# (Streamlit doesn't support complex CSS animations like the drifting flowers easily,
+# but we can style the rest of the app for a clean, professional look.)
+st.markdown("""
+<style>
+    /* Main app background */
+    .stApp {
+        background-color: #fdfbf6; /* A very light, warm off-white */
+    }
     
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #f0f9f3; /* Light green background */
+        border-right: 2px solid #d4edda;
+    }
+
+    [data-testid="stSidebar"] h2 {
+        color: #4A6151; /* Dark green text */
+    }
+
+    /* Main content styling */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+
+    h1 {
+        color: #4A6151;
+    }
+
+    /* Style for metric cards */
+    .metric-card {
+        background-color: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(210, 231, 218, 0.9);
+        padding: 1rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.04);
+        text-align: center;
+    }
+    .metric-card .metric-label {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #5D7A68;
+    }
+    .metric-card .metric-value {
+        font-size: 2.25rem;
+        font-weight: 700;
+        color: #4A6151;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# --- Data Loading and Caching ---
+@st.cache_data
+def load_data(uploaded_file):
+    """
+    Load data from an uploaded CSV file, clean it, and return a pandas DataFrame.
+    Caches the result to avoid reloading and reprocessing on every interaction.
+    """
+    if uploaded_file is None:
+        return None
+    try:
+        # To handle different file encodings
+        string_data = StringIO(uploaded_file.getvalue().decode('utf-8'))
+        df = pd.read_csv(string_data)
+        
+        # Data Cleaning and Preparation
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+        df['Engagements'] = pd.to_numeric(df['Engagements'], errors='coerce').fillna(0)
+        df['Sentiment Score'] = pd.to_numeric(df['Sentiment Score'], errors='coerce').fillna(0)
+        
+        # Fill missing categorical data
+        for col in ['Platform', 'Sentiment', 'Media Type', 'Location']:
+            if col in df.columns:
+                df[col] = df[col].fillna('N/A')
+            else:
+                # If a required column is missing, create it with 'N/A'
+                df[col] = 'N/A'
+        
+        # Drop rows with invalid dates as they are essential for time-series analysis
+        df.dropna(subset=['Date'], inplace=True)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error processing the file: {e}. Please ensure it's a valid CSV file with the expected columns.")
+        return None
+
+# --- Plotly Chart Base Layout ---
+def get_base_layout():
+    """Returns a base layout configuration for Plotly charts for consistent styling."""
+    return go.Layout(
+        height=400,
+        showlegend=True,
+        margin=dict(t=60, b=60, l=70, r=50),
+        font=dict(family='Inter, sans-serif', color='#5D7A68'),
+        paper_bgcolor='rgba(255, 255, 255, 0.7)',
+        plot_bgcolor='rgba(240, 249, 243, 0.7)',
+        title_font=dict(color='#4A6151', size=18),
+        xaxis=dict(
+            title_font=dict(color='#5D7A68', size=14),
+            tickfont=dict(color='#5D7A68'),
+            gridcolor='rgba(209, 227, 216, 0.5)',
+            linecolor='rgba(156, 175, 163, 0.7)'
+        ),
+        yaxis=dict(
+            title_font=dict(color='#5D7A68', size=14),
+            tickfont=dict(color='#5D7A68'),
+            gridcolor='rgba(209, 227, 216, 0.5)',
+            linecolor='rgba(156, 175, 163, 0.7)'
+        ),
+        legend=dict(
+            font=dict(color='#5D7A68'),
+            bgcolor='rgba(255, 255, 255, 0.5)',
+            bordercolor='rgba(209, 227, 216, 0.7)'
+        )
+    )
+
+# --- Main App ---
+def main():
+    # --- Sidebar for Filters and File Upload ---
+    with st.sidebar:
+        st.header("Campaign Analysis Setup 🌿")
+        
+        uploaded_file = st.file_uploader("Upload your CSV Data File 📜", type=['csv'])
+        
+        df_original = load_data(uploaded_file)
+        
+        df = df_original
+        
+        if df is not None:
+            st.success(f"{len(df)} records loaded successfully!")
+            
+            st.markdown("---")
+            st.header("Filter Your Data 🧪")
+            
+            # Platform Filter
+            platforms = ['All'] + sorted(df['Platform'].unique().tolist())
+            selected_platform = st.selectbox("Platform", platforms)
+            
+            # Sentiment Filter
+            sentiments = ['All'] + sorted(df['Sentiment'].unique().tolist())
+            selected_sentiment = st.selectbox("Sentiment", sentiments)
+            
+            # Media Type Filter
+            media_types = ['All'] + sorted(df['Media Type'].unique().tolist())
+            selected_media_type = st.selectbox("Media Type", media_types)
+            
+            # Location Filter
+            locations = ['All'] + sorted(df['Location'].unique().tolist())
+            selected_location = st.selectbox("Location", locations)
+            
+            # Date Range Filter
+            min_date = df['Date'].min().date()
+            max_date = df['Date'].max().date()
+            selected_date_range = st.date_input(
+                "Select Date Range",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date
+            )
+
+            # --- Applying Filters ---
+            df_filtered = df.copy()
+            if selected_platform != 'All':
+                df_filtered = df_filtered[df_filtered['Platform'] == selected_platform]
+            if selected_sentiment != 'All':
+                df_filtered = df_filtered[df_filtered['Sentiment'] == selected_sentiment]
+            if selected_media_type != 'All':
+                df_filtered = df_filtered[df_filtered['Media Type'] == selected_media_type]
+            if selected_location != 'All':
+                df_filtered = df_filtered[df_filtered['Location'] == selected_location]
+            if len(selected_date_range) == 2:
+                start_date, end_date = pd.to_datetime(selected_date_range[0]), pd.to_datetime(selected_date_range[1])
+                df_filtered = df_filtered[(df_filtered['Date'] >= start_date) & (df_filtered['Date'] <= end_date)]
+        else:
+            df_filtered = None
+
+    # --- Main Dashboard Area ---
+    st.title("Campaign Analysis Dashboard 🌸")
+    st.markdown("Visualizing campaign performance and extracting actionable insights.")
+
+    if df_filtered is None:
+        st.info("👋 Welcome! Please upload a CSV file using the sidebar to get started.")
+        st.markdown("Your CSV should contain columns like `Date`, `Platform`, `Engagements`, `Sentiment`, `Media Type`, and `Location`.")
+        return
+
+    if df_filtered.empty:
+        st.warning("🤷‍♀️ No data matches the current filter criteria. Try adjusting your filters!")
+        return
+        
+    # --- Key Metrics (KPIs) ---
+    st.markdown("### 📈 Key Performance Indicators")
+    total_engagements = int(df_filtered['Engagements'].sum())
+    avg_sentiment_score = round(df_filtered['Sentiment Score'].mean(), 2)
+    total_posts = len(df_filtered)
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Total Engagements</div><div class="metric-value">{total_engagements:,}</div></div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Average Sentiment Score</div><div class="metric-value">{avg_sentiment_score}</div></div>', unsafe_allow_html=True)
+    with col3:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Total Posts</div><div class="metric-value">{total_posts}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # --- Visualizations ---
+    st.header("Campaign Visualizations 📊")
+
+    # Define chart colors
+    pie_colors = ['#FADADD', '#FFF2CC', '#D4EDDA', '#E8DAEF', '#D1E8F6']
+    bar_color_1 = '#A8D8B9'
+    bar_color_2 = '#F8C8DC'
+    line_color = '#B0C2F2'
     
-    <!-- Libraries for Functionality -->
-    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Sentiment Breakdown
+        st.subheader("Sentiment Breakdown")
+        sentiment_counts = df_filtered['Sentiment'].value_counts()
+        fig_sentiment = go.Figure(data=[go.Pie(labels=sentiment_counts.index, values=sentiment_counts.values, hole=0.4, marker=dict(colors=pie_colors))])
+        fig_sentiment.update_layout(get_base_layout(), title='Sentiment Breakdown 🌸')
+        st.plotly_chart(fig_sentiment, use_container_width=True)
+        st.markdown("""
+        - **Insight 1:** ✨ The majority of content generates positive sentiment, indicating strong brand appeal.
+        - **Insight 2:** 🤔 A small percentage of negative sentiment exists, which could be an opportunity to address specific customer concerns.
+        - **Insight 3:** 💡 Neutral sentiment posts might benefit from content adjustments to drive stronger emotional responses.
+        """)
 
-    <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-        }
-        .plotly-container {
-            border-radius: 0.75rem; 
-            padding: 1rem;
-            border: 1px solid rgba(210, 231, 218, 0.9); /* Soft green border */
-            background-color: rgba(255, 255, 255, 0.6); 
-        }
-        .filter-select, .filter-input {
-            background-color: rgba(255, 255, 255, 0.8);
-            border-color: rgba(210, 231, 218, 1); 
-            color: #4A6151; /* Dark green text */
-            font-weight: 500;
-        }
-        .filter-select option {
-            background-color: #F0F9F3; /* Lighter green for options */
-            color: #4A6151; /* Dark green text */
-        }
-        ::-webkit-calendar-picker-indicator { filter: none; }
-        .dashboard-section {
-            margin-bottom: 2rem;
-            padding: 1.5rem;
-            background-color: rgba(255, 255, 255, 0.7); /* More opaque white */
-            border-radius: 0.75rem; 
-            box-shadow: 0 6px 12px -2px rgba(100,100,100,0.05), 0 3px 7px -3px rgba(100,100,100,0.04); 
-            border: 1px solid rgba(255, 255, 255, 0.9);
-        }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(240, 249, 243, 0.5); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: rgba(168, 216, 185, 0.8); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(134, 194, 156, 1); }
 
-        @keyframes drift {
-            from { transform: translateY(0vh) translateX(0vw) rotate(0deg); }
-            to { transform: translateY(110vh) translateX(var(--tx-end)) rotate(var(--rotate-end)); }
-        }
-        .animate-drift {
-            --tx-end: 0vw;
-            --rotate-end: 0deg;
-            animation-name: drift;
-            animation-timing-function: linear;
-            animation-iteration-count: infinite;
-        }
-    </style>
-</head>
-<body class="bg-gradient-to-br from-pink-100 via-yellow-50 to-green-100">
+        # Platform Engagements
+        st.subheader("Platform Engagements")
+        platform_engagements = df_filtered.groupby('Platform')['Engagements'].sum().sort_values(ascending=False)
+        fig_platform = px.bar(platform_engagements, x=platform_engagements.index, y=platform_engagements.values, labels={'x':'Platform', 'y':'Total Engagements'})
+        fig_platform.update_traces(marker_color=bar_color_1)
+        fig_platform.update_layout(get_base_layout(), title='Platform Engagements 🚀')
+        st.plotly_chart(fig_platform, use_container_width=True)
+        top_platform = platform_engagements.index[0] if not platform_engagements.empty else "[Platform]"
+        st.markdown(f"""
+        - **Insight 1:** 🏆 **{top_platform}** consistently drives the highest engagement, making it a primary channel for content distribution.
+        - **Insight 2:** 🛠️ Platforms with lower engagement might require a revised content strategy tailored to their audience demographics.
+        - **Insight 3:** 🌐 Diversifying content across multiple platforms helps reach a broader audience, even if engagement varies.
+        """)
 
-    <div id="root"></div>
+        # Top 5 Locations by Engagement
+        st.subheader("Top 5 Locations")
+        location_engagements = df_filtered.groupby('Location')['Engagements'].sum().nlargest(5).sort_values(ascending=False)
+        fig_location = px.bar(location_engagements, x=location_engagements.index, y=location_engagements.values, labels={'x':'Location', 'y':'Total Engagements'})
+        fig_location.update_traces(marker_color=bar_color_2)
+        fig_location.update_layout(get_base_layout(), title='Top 5 Locations 🌍')
+        st.plotly_chart(fig_location, use_container_width=True)
+        top_locs = location_engagements.index[:2].tolist() if len(location_engagements) >= 2 else ["[Location 1]", "[Location 2]"]
+        st.markdown(f"""
+        - **Insight 1:** 📍 **{top_locs[0]}** and **{top_locs[1]}** are key geographical hubs for engagement, indicating strong regional interest.
+        - **Insight 2:** 🎯 Tailoring content or campaigns to specific top locations could further enhance local relevance and engagement.
+        - **Insight 3:** 🌍 Understanding the demographics of top locations can inform future marketing efforts.
+        """)
 
-    <script type="text/babel">
-        // Main App component
-        const App = () => {
-            const { useState, useEffect, useRef } = React;
-            
-            // State to hold the original parsed data from the CSV
-            const [data, setData] = useState([]);
-            // State to hold the data after cleaning and filtering
-            const [filteredData, setFilteredData] = useState([]);
-            // State to manage the current filter selections
-            const [filters, setFilters] = useState({
-                platform: 'All',
-                sentiment: 'All',
-                mediaType: 'All',
-                location: 'All',
-                startDate: '',
-                endDate: '',
-            });
-            // State to track if libraries are loaded (they are loaded in head, so this is for logic sequencing)
-            const [scriptsLoaded, setScriptsLoaded] = useState(false);
-            // State to show loading message during file processing or PDF export
-            const [loading, setLoading] = useState(false);
-            const [pdfExporting, setPdfExporting] = useState(false);
-            // State to hold any error messages
-            const [error, setError] = useState('');
-            // State for Campaign Strategy Summary
-            const [campaignSummary, setCampaignSummary] = useState(
-                "Based on the current data, the key actions should focus on leveraging [Top Platform]'s high engagement by increasing content frequency and exploring more [Most Common Media Type] formats. Additionally, targeted campaigns for [Top Location 1] could yield significant results. Addressing negative sentiment proactively and optimizing content for platforms with lower engagement are also crucial steps. More detailed strategies can be formulated once specific campaign goals are defined."
-            );
+    with col2:
+        # Engagement Trend Over Time
+        st.subheader("Engagement Trend")
+        engagement_by_date = df_filtered.groupby(df_filtered['Date'].dt.date)['Engagements'].sum()
+        fig_trend = go.Figure()
+        fig_trend.add_trace(go.Scatter(x=engagement_by_date.index, y=engagement_by_date.values, mode='lines+markers', name='Engagements', line=dict(color=line_color, width=2.5), marker=dict(size=8, color='#FADADD')))
+        fig_trend.update_layout(get_base_layout(), title='Engagement Trend Over Time 📈', xaxis_title='Date', yaxis_title='Total Engagements')
+        st.plotly_chart(fig_trend, use_container_width=True)
+        st.markdown("""
+        - **Insight 1:** 📈 Engagements show a general upward trend over time, suggesting growing audience interest or effective long-term strategies.
+        - **Insight 2:** 🚀 Significant spikes in engagement often correlate with specific campaigns or viral content, highlighting successful initiatives.
+        - **Insight 3:** 🧐 Identifying periods of low engagement can help in optimizing content scheduling or exploring new content formats.
+        """)
 
-            // Refs for Plotly chart divs
-            const sentimentChartRef = useRef(null);
-            const engagementTrendChartRef = useRef(null);
-            const platformChartRef = useRef(null);
-            const mediaTypeChartRef = useRef(null);
-            const locationChartRef = useRef(null);
-            // Ref for the main dashboard content to be exported to PDF
-            const dashboardContentRef = useRef(null);
 
-            // Hardcoded insights for each chart
-            const insights = {
-                sentiment: [
-                    "Insight 1: ✨ The majority of content generates positive sentiment, indicating strong brand appeal.",
-                    "Insight 2: 🤔 A small percentage of negative sentiment exists, which could be an opportunity to address specific customer concerns.",
-                    "Insight 3: 💡 Neutral sentiment posts might benefit from content adjustments to drive stronger emotional responses."
-                ],
-                engagementTrend: [
-                    "Insight 1: 📈 Engagements show a general upward trend over time, suggesting growing audience interest or effective long-term strategies.",
-                    "Insight 2: 🚀 Significant spikes in engagement often correlate with specific campaigns or viral content, highlighting successful initiatives.",
-                    "Insight 3: 🧐 Identifying periods of low engagement can help in optimizing content scheduling or exploring new content formats."
-                ],
-                platformEngagements: [
-                    "Insight 1: 🏆 [Top Platform] consistently drives the highest engagement, making it a primary channel for content distribution.",
-                    "Insight 2: 🛠️ Platforms with lower engagement might require a revised content strategy tailored to their audience demographics.",
-                    "Insight 3: 🌐 Diversifying content across multiple platforms helps reach a broader audience, even if engagement varies."
-                ],
-                mediaTypeMix: [
-                    "Insight 1: 🌟 [Most Common Media Type] is the most frequently used and likely preferred content format by the audience.",
-                    "Insight 2: 🎨 Exploring underutilized media types could uncover new avenues for audience engagement and content innovation.",
-                    "Insight 3: 🔄 A balanced mix of media types can cater to diverse audience preferences and keep content fresh."
-                ],
-                topLocations: [
-                    "Insight 1: 📍 [Top Location 1] and [Top Location 2] are key geographical hubs for engagement, indicating strong regional interest.",
-                    "Insight 2: 🎯 Tailoring content or campaigns to specific top locations could further enhance local relevance and engagement.",
-                    "Insight 3: 🌍 Understanding the demographics and cultural nuances of top engaging locations can inform future marketing efforts."
-                ]
-            };
+        # Media Type Mix
+        st.subheader("Media Type Mix")
+        media_type_counts = df_filtered['Media Type'].value_counts()
+        fig_media = go.Figure(data=[go.Pie(labels=media_type_counts.index, values=media_type_counts.values, hole=0.4, marker=dict(colors=pie_colors))])
+        fig_media.update_layout(get_base_layout(), title='Media Type Mix 🎨')
+        st.plotly_chart(fig_media, use_container_width=True)
+        most_common_media = media_type_counts.index[0] if not media_type_counts.empty else "[Media Type]"
+        st.markdown(f"""
+        - **Insight 1:** 🌟 **{most_common_media}** is the most frequently used and likely preferred content format by the audience.
+        - **Insight 2:** 🎨 Exploring underutilized media types could uncover new avenues for audience engagement and content innovation.
+        - **Insight 3:** 🔄 A balanced mix of media types can cater to diverse audience preferences and keep content fresh.
+        """)
 
-            // Check for scripts on mount
-            useEffect(() => {
-                if (window.React && window.ReactDOM && window.Papa && window.Plotly && window.jspdf && window.html2canvas) {
-                    setScriptsLoaded(true);
-                } else {
-                    setError("Some required libraries failed to load. Please refresh the page.");
-                }
-            }, []);
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # --- Campaign Strategy Summary ---
+    st.header("Campaign Strategy Summary 📝")
+    top_platform = df_filtered.groupby('Platform')['Engagements'].sum().idxmax() if not df_filtered.empty else "[Top Platform]"
+    most_common_media = df_filtered['Media Type'].mode()[0] if not df_filtered.empty else "[Most Common Media Type]"
+    top_location = df_filtered.groupby('Location')['Engagements'].sum().idxmax() if not df_filtered.empty else "[Top Location]"
+    
+    summary_text = (
+        f"Based on the current data, the key actions should focus on leveraging **{top_platform}**'s high engagement "
+        f"by increasing content frequency and exploring more **{most_common_media}** formats. Additionally, targeted "
+        f"campaigns for **{top_location}** could yield significant results. Addressing negative sentiment proactively and "
+        "optimizing content for platforms with lower engagement are also crucial steps. More detailed strategies "
+        "can be formulated once specific campaign goals are defined."
+    )
+    st.markdown(summary_text)
 
-            // Effect to apply filters
-            useEffect(() => {
-                if (data.length > 0) {
-                    applyFilters();
-                }
-            }, [data, filters]);
+    # --- Footer ---
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #5D7A68;'>Made with 💖 using Streamlit</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #5D7A68; font-size: 0.8em;'>Adapted by Zulfa Nur Aina Putri</p>", unsafe_allow_html=True)
 
-            // Effect to generate charts
-            useEffect(() => {
-                if (filteredData.length > 0 && scriptsLoaded) {
-                    generateCharts();
-                } else if (scriptsLoaded && data.length > 0 && filteredData.length === 0) {
-                    clearCharts();
-                }
-            }, [filteredData, scriptsLoaded]);
 
-            // Function to clear charts
-            const clearCharts = () => {
-                if (window.Plotly) {
-                    [sentimentChartRef, engagementTrendChartRef, platformChartRef, mediaTypeChartRef, locationChartRef].forEach(ref => {
-                        if (ref.current && ref.current.data) {
-                            try {
-                                Plotly.purge(ref.current);
-                            } catch (e) {
-                                console.warn("Error purging chart:", e);
-                            }
-                        }
-                    });
-                }
-            };
+if __name__ == "__main__":
+    main()
 
-            // Handler for CSV file upload
-            const handleFileUpload = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-                if (file.type !== 'text/csv') {
-                    setError('🌸 Please upload a CSV file.');
-                    return;
-                }
-                setLoading(true);
-                setError('');
-                setData([]);
-                setFilteredData([]);
-                clearCharts();
-
-                window.Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                        if (results.errors.length > 0) {
-                            console.error("CSV Parsing Errors:", results.errors);
-                            setError(`❌ Error parsing CSV: ${results.errors[0].message}. Please check CSV format.`);
-                            setLoading(false);
-                            return;
-                        }
-                        const cleanedData = results.data.map(row => ({
-                            ...row,
-                            Date: row.Date ? new Date(row.Date) : null,
-                            Engagements: row.Engagements ? parseFloat(row.Engagements) : 0,
-                            'Sentiment Score': row['Sentiment Score'] ? parseFloat(row['Sentiment Score']) : 0,
-                            Platform: row.Platform || 'N/A',
-                            Sentiment: row.Sentiment || 'N/A',
-                            'Media Type': row['Media Type'] || 'N/A',
-                            Location: row.Location || 'N/A',
-                        })).filter(row => row.Date !== null && !isNaN(row.Date.getTime()));
-
-                        if (cleanedData.length === 0 && results.data.length > 0) {
-                             setError('⚠️ No valid date entries found. Charts may not display correctly.');
-                        } else if (cleanedData.length === 0) {
-                             setError('⚠️ No data parsed or data is not in the expected format.');
-                        }
-                        setData(cleanedData);
-                        setLoading(false);
-                    },
-                    error: (err) => {
-                        setError(`❌ Error parsing CSV: ${err.message}`);
-                        setLoading(false);
-                    }
-                });
-            };
-
-            // Function to apply filters
-            const applyFilters = () => {
-                let currentFilteredData = [...data];
-                if (filters.platform !== 'All') {
-                    currentFilteredData = currentFilteredData.filter(d => d.Platform === filters.platform);
-                }
-                if (filters.sentiment !== 'All') {
-                    currentFilteredData = currentFilteredData.filter(d => d.Sentiment === filters.sentiment);
-                }
-                if (filters.mediaType !== 'All') {
-                    currentFilteredData = currentFilteredData.filter(d => d['Media Type'] === filters.mediaType);
-                }
-                if (filters.location !== 'All') {
-                    currentFilteredData = currentFilteredData.filter(d => d.Location === filters.location);
-                }
-                if (filters.startDate) {
-                    const start = new Date(filters.startDate);
-                    start.setHours(0, 0, 0, 0);
-                    currentFilteredData = currentFilteredData.filter(d => d.Date && d.Date >= start);
-                }
-                if (filters.endDate) {
-                    const end = new Date(filters.endDate);
-                    end.setHours(23, 59, 59, 999);
-                    currentFilteredData = currentFilteredData.filter(d => d.Date && d.Date <= end);
-                }
-                setFilteredData(currentFilteredData);
-            };
-
-            // Handler for filter changes
-            const handleFilterChange = (e) => {
-                const { name, value } = e.target;
-                setFilters(prevFilters => ({ ...prevFilters, [name]: value }));
-            };
-
-            // Handler for clearing filters
-            const handleClearFilters = () => {
-                setFilters({
-                    platform: 'All', sentiment: 'All', mediaType: 'All',
-                    location: 'All', startDate: '', endDate: '',
-                });
-                setError('');
-            };
-            
-            // Function to generate charts
-            const generateCharts = () => {
-                if (!window.Plotly || !filteredData.length) {
-                    clearCharts();
-                    return;
-                }
-                const baseLayout = {
-                    height: 400, showlegend: true, margin: { t: 60, b: 60, l: 70, r: 50 },
-                    font: { family: 'Inter, sans-serif', color: '#5D7A68' },
-                    paper_bgcolor: 'rgba(255, 255, 255, 0.7)', plot_bgcolor: 'rgba(240, 249, 243, 0.7)',
-                    titlefont: { color: '#4A6151', size: 18 },
-                    xaxis: { titlefont: { color: '#5D7A68', size: 14 }, tickfont: { color: '#5D7A68' }, gridcolor: 'rgba(209, 227, 216, 0.5)', linecolor: 'rgba(156, 175, 163, 0.7)' },
-                    yaxis: { titlefont: { color: '#5D7A68', size: 14 }, tickfont: { color: '#5D7A68' }, gridcolor: 'rgba(209, 227, 216, 0.5)', linecolor: 'rgba(156, 175, 163, 0.7)' },
-                    legend: { font: { color: '#5D7A68' }, bgcolor: 'rgba(255, 255, 255, 0.5)', bordercolor: 'rgba(209, 227, 216, 0.7)' }
-                };
-                const pieChartMarkerColors = ['#FADADD', '#FFF2CC', '#D4EDDA', '#E8DAEF', '#D1E8F6'];
-                const barChartColor1 = '#A8D8B9';
-                const barChartColor2 = '#F8C8DC';
-                const lineChartColor = '#B0C2F2';
-
-                // --- Sentiment Breakdown ---
-                const sentimentCounts = filteredData.reduce((acc, curr) => { acc[curr.Sentiment] = (acc[curr.Sentiment] || 0) + 1; return acc; }, {});
-                if (sentimentChartRef.current) Plotly.react(sentimentChartRef.current, [{ labels: Object.keys(sentimentCounts), values: Object.values(sentimentCounts), type: 'pie', hole: 0.4, marker: { colors: pieChartMarkerColors }, textfont: { color: '#4A6151', size: 12 } }], { ...baseLayout, title: 'Sentiment Breakdown 🌸' });
-
-                // --- Engagement Trend ---
-                const engagementByDate = filteredData.reduce((acc, curr) => { const dateStr = curr.Date ? curr.Date.toISOString().split('T')[0] : 'Unknown'; if (dateStr !== 'Unknown') acc[dateStr] = (acc[dateStr] || 0) + curr.Engagements; return acc; }, {});
-                const sortedDates = Object.keys(engagementByDate).sort((a, b) => new Date(a) - new Date(b));
-                if (engagementTrendChartRef.current) Plotly.react(engagementTrendChartRef.current, [{ x: sortedDates, y: sortedDates.map(date => engagementByDate[date]), mode: 'lines+markers', name: 'Engagements', line: { color: lineChartColor, width: 2.5 }, marker: { size: 8, color: '#FADADD' } }], { ...baseLayout, title: 'Engagement Trend 📈', xaxis: { ...baseLayout.xaxis, type: 'date', title: 'Date' }, yaxis: { ...baseLayout.yaxis, title: 'Total Engagements' } });
-                
-                // --- Platform Engagements ---
-                const platformEngagements = filteredData.reduce((acc, curr) => { acc[curr.Platform] = (acc[curr.Platform] || 0) + curr.Engagements; return acc; }, {});
-                if (platformChartRef.current) Plotly.react(platformChartRef.current, [{ x: Object.keys(platformEngagements), y: Object.values(platformEngagements), type: 'bar', marker: { color: barChartColor1 } }], { ...baseLayout, title: 'Platform Engagements 🚀', xaxis: { ...baseLayout.xaxis, title: 'Platform' }, yaxis: { ...baseLayout.yaxis, title: 'Total Engagements' } });
-
-                // --- Media Type Mix ---
-                const mediaTypeCounts = filteredData.reduce((acc, curr) => { acc[curr['Media Type']] = (acc[curr['Media Type']] || 0) + 1; return acc; }, {});
-                if (mediaTypeChartRef.current) Plotly.react(mediaTypeChartRef.current, [{ labels: Object.keys(mediaTypeCounts), values: Object.values(mediaTypeCounts), type: 'pie', hole: 0.4, marker: { colors: pieChartMarkerColors }, textfont: { color: '#4A6151', size: 12 } }], { ...baseLayout, title: 'Media Type Mix 🎨' });
-
-                // --- Top 5 Locations ---
-                const locationEngagements = filteredData.reduce((acc, curr) => { acc[curr.Location] = (acc[curr.Location] || 0) + curr.Engagements; return acc; }, {});
-                const sortedLocations = Object.entries(locationEngagements).sort(([, a], [, b]) => b - a).slice(0, 5);
-                if (locationChartRef.current) Plotly.react(locationChartRef.current, [{ x: sortedLocations.map(([loc]) => loc), y: sortedLocations.map(([, eng]) => eng), type: 'bar', marker: { color: barChartColor2 } }], { ...baseLayout, title: 'Top 5 Locations 🌍', xaxis: { ...baseLayout.xaxis, title: 'Location' }, yaxis: { ...baseLayout.yaxis, title: 'Total Engagements' } });
-            };
-            
-            // Helper to get unique values for dropdowns
-            const getUniqueValues = (key) => [...new Set(data.map(item => item[key]))].filter(Boolean).sort();
-            
-            // Dynamic insight helpers
-            const getTopPlatform = () => { if (!filteredData.length) return "[Platform]"; const p = filteredData.reduce((acc, curr) => { acc[curr.Platform] = (acc[curr.Platform] || 0) + curr.Engagements; return acc; }, {}); return Object.entries(p).sort(([, a], [, b]) => b - a)[0]?.[0] || "[Platform]"; };
-            const getMostCommonMediaType = () => { if (!filteredData.length) return "[Media Type]"; const mt = filteredData.reduce((acc, curr) => { acc[curr['Media Type']] = (acc[curr['Media Type']] || 0) + 1; return acc; }, {}); return Object.entries(mt).sort(([, a], [, b]) => b - a)[0]?.[0] || "[Media Type]"; };
-            const getTopLocations = () => { if (!filteredData.length) return ["[Location]", ""]; const l = filteredData.reduce((acc, curr) => { acc[curr.Location] = (acc[curr.Location] || 0) + curr.Engagements; return acc; }, {}); const sorted = Object.entries(l).filter(([loc]) => loc && loc !== 'N/A').sort(([, a], [, b]) => b - a).slice(0, 2).map(([loc]) => loc); return sorted.length > 0 ? sorted : ["[Location]", ""]; };
-
-            // Function to handle PDF export
-            const handleExportToPDF = async () => {
-                if (!dashboardContentRef.current) return;
-                setPdfExporting(true);
-                setError('');
-                try {
-                    const { jsPDF } = window.jspdf;
-                    const canvas = await window.html2canvas(dashboardContentRef.current, { scale: 2, useCORS: true, backgroundColor: '#fdfbf6', logging: false });
-                    const imgData = canvas.toDataURL('image/png');
-                    const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [canvas.width, canvas.height] });
-                    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-                    pdf.save('campaign-analysis-dashboard.pdf');
-                } catch (e) {
-                    console.error("Error exporting to PDF:", e);
-                    setError(`❌ Failed to export to PDF: ${e.message}`);
-                } finally {
-                    setPdfExporting(false);
-                }
-            };
-            
-            // Flower component for background effect
-            const Flower = ({ style, children }) => {
-                const newStyle = {
-                    ...style,
-                    '--tx-end': `${Math.random() * 8 - 4}vw`,
-                    '--rotate-end': `${Math.random() * 360}deg`
-                };
-                return <span className="absolute text-xl animate-drift" style={newStyle}>{children}</span>;
-            };
-
-            const flowers = ['🌸', '🌼', '🌷', '🌿', '🌻'].flatMap((emoji, emojiIndex) => 
-                Array.from({ length: 4 }).map((_, i) => ({
-                    id: emojiIndex * 4 + i, emoji: emoji,
-                    style: { top: `-10%`, left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 15}s`, animationDuration: `${10 + Math.random() * 10}s`, opacity: `${0.4 + Math.random() * 0.4}` }
-                }))
-            );
-
-            return (
-                <div className="relative min-h-screen p-4 overflow-hidden">
-                    <div className="absolute inset-0 z-0 pointer-events-none">
-                        {flowers.map(flower => <Flower key={flower.id} style={flower.style}>{flower.emoji}</Flower>)}
-                    </div>
-                    
-                    <div ref={dashboardContentRef} className="relative z-10 max-w-7xl mx-auto bg-white/40 backdrop-blur-md p-6 rounded-xl shadow-lg border border-white/60">
-                        <div className="flex justify-between items-center mb-2">
-                            <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-pink-400 to-yellow-500">
-                                Campaign Analysis 🌸
-                            </h1>
-                        </div>
-                        <p className="text-center text-green-600 mb-8 text-base">Visualizing campaign performance and extracting actionable insights. 🌿</p>
-
-                        <div className="dashboard-section">
-                            <label htmlFor="csv-upload" className="block text-lg font-semibold text-green-800 mb-3">Upload your CSV Data File 📜</label>
-                            <input type="file" id="csv-upload" accept=".csv" onChange={handleFileUpload} className="block w-full text-sm text-gray-600 file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-pink-300 file:text-white hover:file:bg-pink-400 transition-colors duration-200 cursor-pointer" />
-                            {loading && <p className="mt-3 text-green-600 animate-pulse">⏳ Processing data... Please wait a moment.</p>}
-                            {error && <p className="mt-3 text-red-500 font-semibold text-base">{error}</p>}
-                            {data.length > 0 && !loading && !error && <p className="mt-3 text-green-700 font-medium">✅ Success! {data.length} records loaded and visualized below.</p>}
-                        </div>
-
-                        {data.length > 0 && (
-                            <div className="dashboard-section">
-                                <h2 className="text-2xl font-semibold text-green-800 mb-5">Filter Your Data 🧪</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 mb-4">
-                                    {['Platform', 'Sentiment', 'Media Type', 'Location'].map(key => {
-                                        const name = key.toLowerCase().replace(/ /g, '') === 'mediatype' ? 'mediaType' : key.toLowerCase();
-                                        return (
-                                            <div className="flex flex-col" key={key}>
-                                                <label htmlFor={name} className="text-sm font-medium text-green-700 mb-1.5">{key}</label>
-                                                <select id={name} name={name} value={filters[name]} onChange={handleFilterChange} className="p-2.5 border rounded-md shadow-sm focus:ring-green-400 focus:border-green-400 filter-select">
-                                                    <option value="All">All {key}s</option>
-                                                    {getUniqueValues(key).map(option => <option key={option} value={option}>{option}</option>)}
-                                                </select>
-                                            </div>
-                                        );
-                                    })}
-                                    <div className="flex flex-col">
-                                        <label htmlFor="startDate" className="text-sm font-medium text-green-700 mb-1.5">Start Date</label>
-                                        <input type="date" id="startDate" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="p-2.5 border rounded-md shadow-sm focus:ring-green-400 focus:border-green-400 filter-input" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label htmlFor="endDate" className="text-sm font-medium text-green-700 mb-1.5">End Date</label>
-                                        <input type="date" id="endDate" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="p-2.5 border rounded-md shadow-sm focus:ring-green-400 focus:border-green-400 filter-input" />
-                                    </div>
-                                </div>
-                                <button onClick={handleClearFilters} className="mt-4 px-6 py-2.5 bg-yellow-300 text-yellow-800 font-semibold rounded-lg shadow-sm hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-75 transition duration-200">Clear Filters ✨</button>
-                            </div>
-                        )}
-
-                        {filteredData.length > 0 && scriptsLoaded && (
-                            <div className="dashboard-section">
-                                <h2 className="text-2xl font-semibold text-green-800 mb-6 text-center">Campaign Visualizations 📊</h2>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    {[ { ref: sentimentChartRef, insightsKey: 'sentiment', title: "Sentiment Analysis" }, { ref: engagementTrendChartRef, insightsKey: 'engagementTrend', title: "Engagement Over Time" }, { ref: platformChartRef, insightsKey: 'platformEngagements', title: "Platform Performance" }, { ref: mediaTypeChartRef, insightsKey: 'mediaTypeMix', title: "Content Mix" }, { ref: locationChartRef, insightsKey: 'topLocations', title: "Geographic Hotspots" }, ].map(({ ref, insightsKey, title }) => (
-                                        <div className="plotly-container shadow-md" key={insightsKey}>
-                                            <div ref={ref} className="w-full h-96"></div>
-                                            <h3 className="text-lg font-semibold text-green-700 mt-4 mb-2">{title} - Insights:</h3>
-                                            <ul className="list-disc list-inside text-green-800 text-sm space-y-1.5">
-                                                {insights[insightsKey].map((insight, index) => (
-                                                    <li key={index}>
-                                                        {insight.replace('[Top Platform]', getTopPlatform()).replace('[Most Common Media Type]', getMostCommonMediaType()).replace('[Top Location 1]', getTopLocations()[0] || 'N/A').replace('[Top Location 2]', getTopLocations()[1] || 'N/A')}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        
-                        {data.length > 0 && (
-                            <div className="dashboard-section">
-                                <h2 className="text-2xl font-semibold text-green-800 mb-4">Campaign Strategy Summary 📝</h2>
-                                <p className="text-green-700 text-base leading-relaxed">
-                                    {campaignSummary.replace('[Top Platform]', getTopPlatform()).replace('[Most Common Media Type]', getMostCommonMediaType()).replace('[Top Location 1]', getTopLocations()[0] || 'N/A')}
-                                </p>
-                            </div>
-                        )}
-
-                        {filteredData.length > 0 && scriptsLoaded && !loading && (
-                            <div className="mt-6 mb-8 text-center">
-                                <button onClick={handleExportToPDF} disabled={pdfExporting} className="px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 transition duration-200 disabled:opacity-60 disabled:cursor-not-allowed">
-                                    {pdfExporting ? 'Exporting PDF... ⏳' : 'Export to PDF 📄'}
-                                </button>
-                            </div>
-                        )}
-
-                        {filteredData.length === 0 && data.length > 0 && !loading && (
-                            <div className="mt-8 p-6 bg-yellow-100 rounded-lg shadow-inner text-center text-yellow-700 border border-yellow-200">
-                                <p className="text-lg font-medium">🤷‍♀️ No data matches the current filter criteria.</p>
-                                <p className="text-sm mt-2">Try adjusting your filters or clearing them!</p>
-                            </div>
-                        )}
-                        {!scriptsLoaded && !error && !loading && (
-                            <div className="mt-8 p-6 bg-gray-100 rounded-lg shadow-inner text-center text-gray-600">
-                                <p className="text-lg font-medium animate-pulse">🌱 Loading visualization tools...</p>
-                            </div>
-                        )}
-
-                        {scriptsLoaded && (data.length > 0 || error) && !loading && (
-                            <div className="mt-12 text-center">
-                                <p className="text-pink-500 text-lg mb-4">Hope this analysis is helpful! 🌷</p>
-                                <p className="text-green-700 text-xs">Made by Zulfa Nur Aina Putri</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
-</body>
-</html>
