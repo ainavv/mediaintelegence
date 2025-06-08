@@ -13,8 +13,6 @@ st.set_page_config(
 )
 
 # --- Custom Styling ---
-# (Streamlit doesn't support complex CSS animations like the drifting flowers easily,
-# but we can style the rest of the app for a clean, professional look.)
 st.markdown("""
 <style>
     /* Main app background */
@@ -64,7 +62,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
 # --- Data Loading and Caching ---
 @st.cache_data
 def load_data(uploaded_file):
@@ -75,7 +72,6 @@ def load_data(uploaded_file):
     if uploaded_file is None:
         return None
     try:
-        # To handle different file encodings
         string_data = StringIO(uploaded_file.getvalue().decode('utf-8'))
         df = pd.read_csv(string_data)
         
@@ -89,10 +85,9 @@ def load_data(uploaded_file):
             if col in df.columns:
                 df[col] = df[col].fillna('N/A')
             else:
-                # If a required column is missing, create it with 'N/A'
                 df[col] = 'N/A'
         
-        # Drop rows with invalid dates as they are essential for time-series analysis
+        # Drop rows with invalid dates
         df.dropna(subset=['Date'], inplace=True)
         
         return df
@@ -132,7 +127,6 @@ def get_base_layout():
 
 # --- Main App ---
 def main():
-    # --- Sidebar for Filters and File Upload ---
     with st.sidebar:
         st.header("Campaign Analysis Setup 🌿")
         
@@ -148,23 +142,18 @@ def main():
             st.markdown("---")
             st.header("Filter Your Data 🧪")
             
-            # Platform Filter
             platforms = ['All'] + sorted(df['Platform'].unique().tolist())
             selected_platform = st.selectbox("Platform", platforms)
             
-            # Sentiment Filter
             sentiments = ['All'] + sorted(df['Sentiment'].unique().tolist())
             selected_sentiment = st.selectbox("Sentiment", sentiments)
             
-            # Media Type Filter
             media_types = ['All'] + sorted(df['Media Type'].unique().tolist())
             selected_media_type = st.selectbox("Media Type", media_types)
             
-            # Location Filter
             locations = ['All'] + sorted(df['Location'].unique().tolist())
             selected_location = st.selectbox("Location", locations)
             
-            # Date Range Filter
             min_date = df['Date'].min().date()
             max_date = df['Date'].max().date()
             selected_date_range = st.date_input(
@@ -174,7 +163,6 @@ def main():
                 max_value=max_date
             )
 
-            # --- Applying Filters ---
             df_filtered = df.copy()
             if selected_platform != 'All':
                 df_filtered = df_filtered[df_filtered['Platform'] == selected_platform]
@@ -190,7 +178,6 @@ def main():
         else:
             df_filtered = None
 
-    # --- Main Dashboard Area ---
     st.title("Campaign Analysis Dashboard 🌸")
     st.markdown("Visualizing campaign performance and extracting actionable insights.")
 
@@ -203,7 +190,6 @@ def main():
         st.warning("🤷‍♀️ No data matches the current filter criteria. Try adjusting your filters!")
         return
         
-    # --- Key Metrics (KPIs) ---
     st.markdown("### 📈 Key Performance Indicators")
     total_engagements = int(df_filtered['Engagements'].sum())
     avg_sentiment_score = round(df_filtered['Sentiment Score'].mean(), 2)
@@ -219,10 +205,8 @@ def main():
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # --- Visualizations ---
     st.header("Campaign Visualizations 📊")
 
-    # Define chart colors
     pie_colors = ['#FADADD', '#FFF2CC', '#D4EDDA', '#E8DAEF', '#D1E8F6']
     bar_color_1 = '#A8D8B9'
     bar_color_2 = '#F8C8DC'
@@ -231,7 +215,6 @@ def main():
     col1, col2 = st.columns(2)
     
     with col1:
-        # Sentiment Breakdown
         st.subheader("Sentiment Breakdown")
         sentiment_counts = df_filtered['Sentiment'].value_counts()
         fig_sentiment = go.Figure(data=[go.Pie(labels=sentiment_counts.index, values=sentiment_counts.values, hole=0.4, marker=dict(colors=pie_colors))])
@@ -243,8 +226,6 @@ def main():
         - **Insight 3:** 💡 Neutral sentiment posts might benefit from content adjustments to drive stronger emotional responses.
         """)
 
-
-        # Platform Engagements
         st.subheader("Platform Engagements")
         platform_engagements = df_filtered.groupby('Platform')['Engagements'].sum().sort_values(ascending=False)
         fig_platform = px.bar(platform_engagements, x=platform_engagements.index, y=platform_engagements.values, labels={'x':'Platform', 'y':'Total Engagements'})
@@ -258,71 +239,45 @@ def main():
         - **Insight 3:** 🌐 Diversifying content across multiple platforms helps reach a broader audience, even if engagement varies.
         """)
 
-        # Top 5 Locations by Engagement
-        st.subheader("Top 5 Locations")
-        location_engagements = df_filtered.groupby('Location')['Engagements'].sum().nlargest(5).sort_values(ascending=False)
-        fig_location = px.bar(location_engagements, x=location_engagements.index, y=location_engagements.values, labels={'x':'Location', 'y':'Total Engagements'})
-        fig_location.update_traces(marker_color=bar_color_2)
-        fig_location.update_layout(get_base_layout(), title='Top 5 Locations 🌍')
-        st.plotly_chart(fig_location, use_container_width=True)
-        top_locs = location_engagements.index[:2].tolist() if len(location_engagements) >= 2 else ["[Location 1]", "[Location 2]"]
-        st.markdown(f"""
-        - **Insight 1:** 📍 **{top_locs[0]}** and **{top_locs[1]}** are key geographical hubs for engagement, indicating strong regional interest.
-        - **Insight 2:** 🎯 Tailoring content or campaigns to specific top locations could further enhance local relevance and engagement.
-        - **Insight 3:** 🌍 Understanding the demographics of top locations can inform future marketing efforts.
+        st.subheader("Media Type Distribution")
+        media_counts = df_filtered['Media Type'].value_counts()
+        fig_media = px.pie(media_counts, names=media_counts.index, values=media_counts.values, hole=0.3, color_discrete_sequence=pie_colors)
+        fig_media.update_layout(get_base_layout(), title='Media Type Distribution 🎥')
+        st.plotly_chart(fig_media, use_container_width=True)
+        st.markdown("""
+        - **Insight 1:** 📹 Video content comprises a significant share of posts, suggesting its effectiveness.
+        - **Insight 2:** 📸 Image posts maintain steady engagement but may need creative refresh to boost impact.
+        - **Insight 3:** ✍️ Text-based or other media types present growth opportunities with innovative storytelling.
         """)
 
     with col2:
-        # Engagement Trend Over Time
-        st.subheader("Engagement Trend")
-        engagement_by_date = df_filtered.groupby(df_filtered['Date'].dt.date)['Engagements'].sum()
-        fig_trend = go.Figure()
-        fig_trend.add_trace(go.Scatter(x=engagement_by_date.index, y=engagement_by_date.values, mode='lines+markers', name='Engagements', line=dict(color=line_color, width=2.5), marker=dict(size=8, color='#FADADD')))
-        fig_trend.update_layout(get_base_layout(), title='Engagement Trend Over Time 📈', xaxis_title='Date', yaxis_title='Total Engagements')
-        st.plotly_chart(fig_trend, use_container_width=True)
+        st.subheader("Sentiment Score Over Time")
+        sentiment_time = df_filtered.groupby('Date')['Sentiment Score'].mean().reset_index()
+        fig_sent_time = px.line(sentiment_time, x='Date', y='Sentiment Score', labels={'Date':'Date', 'Sentiment Score':'Avg Sentiment Score'})
+        fig_sent_time.update_traces(line_color=line_color, line_shape='spline')
+        fig_sent_time.update_layout(get_base_layout(), title='Average Sentiment Score Over Time 📅')
+        st.plotly_chart(fig_sent_time, use_container_width=True)
         st.markdown("""
-        - **Insight 1:** 📈 Engagements show a general upward trend over time, suggesting growing audience interest or effective long-term strategies.
-        - **Insight 2:** 🚀 Significant spikes in engagement often correlate with specific campaigns or viral content, highlighting successful initiatives.
-        - **Insight 3:** 🧐 Identifying periods of low engagement can help in optimizing content scheduling or exploring new content formats.
+        - **Insight 1:** 📈 Sentiment score trends upward in certain periods, likely aligned with successful campaigns.
+        - **Insight 2:** 📉 Dips in sentiment should be analyzed for potential issues or external factors impacting audience mood.
+        - **Insight 3:** 📊 Maintaining steady positive sentiment over time correlates with sustained audience trust and brand loyalty.
         """)
 
-
-        # Media Type Mix
-        st.subheader("Media Type Mix")
-        media_type_counts = df_filtered['Media Type'].value_counts()
-        fig_media = go.Figure(data=[go.Pie(labels=media_type_counts.index, values=media_type_counts.values, hole=0.4, marker=dict(colors=pie_colors))])
-        fig_media.update_layout(get_base_layout(), title='Media Type Mix 🎨')
-        st.plotly_chart(fig_media, use_container_width=True)
-        most_common_media = media_type_counts.index[0] if not media_type_counts.empty else "[Media Type]"
+        st.subheader("Engagements by Location")
+        location_engagements = df_filtered.groupby('Location')['Engagements'].sum().sort_values(ascending=False)
+        fig_location = px.bar(location_engagements, x=location_engagements.index, y=location_engagements.values, labels={'x':'Location', 'y':'Total Engagements'})
+        fig_location.update_traces(marker_color=bar_color_2)
+        fig_location.update_layout(get_base_layout(), title='Engagements by Location 🌍')
+        st.plotly_chart(fig_location, use_container_width=True)
+        top_location = location_engagements.index[0] if not location_engagements.empty else "[Location]"
         st.markdown(f"""
-        - **Insight 1:** 🌟 **{most_common_media}** is the most frequently used and likely preferred content format by the audience.
-        - **Insight 2:** 🎨 Exploring underutilized media types could uncover new avenues for audience engagement and content innovation.
-        - **Insight 3:** 🔄 A balanced mix of media types can cater to diverse audience preferences and keep content fresh.
+        - **Insight 1:** 🌆 **{top_location}** leads in engagements, identifying it as a hotspot for campaign focus.
+        - **Insight 2:** 🗺️ Locations with lower engagement may need localized marketing efforts.
+        - **Insight 3:** 📣 Tailoring content to regional preferences can enhance overall campaign effectiveness.
         """)
 
-    st.markdown("<hr>", unsafe_allow_html=True)
-    
-    # --- Campaign Strategy Summary ---
-    st.header("Campaign Strategy Summary 📝")
-    top_platform = df_filtered.groupby('Platform')['Engagements'].sum().idxmax() if not df_filtered.empty else "[Top Platform]"
-    most_common_media = df_filtered['Media Type'].mode()[0] if not df_filtered.empty else "[Most Common Media Type]"
-    top_location = df_filtered.groupby('Location')['Engagements'].sum().idxmax() if not df_filtered.empty else "[Top Location]"
-    
-    summary_text = (
-        f"Based on the current data, the key actions should focus on leveraging **{top_platform}**'s high engagement "
-        f"by increasing content frequency and exploring more **{most_common_media}** formats. Additionally, targeted "
-        f"campaigns for **{top_location}** could yield significant results. Addressing negative sentiment proactively and "
-        "optimizing content for platforms with lower engagement are also crucial steps. More detailed strategies "
-        "can be formulated once specific campaign goals are defined."
-    )
-    st.markdown(summary_text)
-
-    # --- Footer ---
-    st.markdown("<hr>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #5D7A68;'>Made with 💖 using Streamlit</p>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #5D7A68; font-size: 0.8em;'>Adapted by Zulfa Nur Aina Putri</p>", unsafe_allow_html=True)
-
+    st.markdown("---")
+    st.markdown("© 2025 Campaign Analysis Dashboard by 🌸")
 
 if __name__ == "__main__":
     main()
-
