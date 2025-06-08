@@ -1,4 +1,5 @@
-streamlit>=1.35.0
-pandas>=2.0.0
-plotly>=5.20.0
-pdfkit
+streamlit>=1.30
+pandas>=1.5
+plotly>=5.18
+fpdf>=1.7
+matplotlib>=3.7
