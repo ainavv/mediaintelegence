@@ -10,70 +10,97 @@ page_bg = """
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
 
 body {
-    background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80');
+    background-image: url('https://images.unsplash.com/photo-1577741314725-d72b1580214a?auto=format&fit=crop&w=1920&q=80'); /* Gambar background baru */
     background-size: cover;
     background-attachment: fixed;
     font-family: 'Quicksand', sans-serif;
-    color: #2f2f2f;
+    color: #3e3e3e; /* Warna teks lebih gelap sedikit untuk kontras */
 }
 
 .main-container {
-    background: rgba(255, 255, 255, 0.92); /* Sedikit transparan untuk efek cottage */
+    background: rgba(255, 255, 255, 0.9); /* Sedikit lebih opaque agar konten lebih jelas */
     padding: 30px;
     border-radius: 20px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15); /* Shadow lebih menonjol */
+    margin-top: 30px; /* Jarak dari atas */
+    margin-bottom: 30px; /* Jarak dari bawah */
 }
 
 h1, h2, h3 {
-    color: #4CAF50; /* Soft Green */
+    color: #6a9955; /* Soft Green lebih dominan */
     font-weight: 700;
 }
 
 h4 {
-    color: #FFC0CB; /* Soft Pink */
+    color: #e9a6a6; /* Soft Pink yang sedikit lebih muted */
 }
 
 .stButton > button {
-    background-color: #FFC0CB; /* Soft Pink */
-    color: #4CAF50; /* Soft Green */
+    background-color: #f7cac9; /* Soft Pink untuk tombol */
+    color: #6a9955; /* Soft Green untuk teks tombol */
     border: none;
-    border-radius: 12px;
-    padding: 8px 20px;
-    font-size: 16px;
+    border-radius: 15px; /* Border radius lebih besar */
+    padding: 10px 25px;
+    font-size: 17px;
     font-weight: 600;
-    transition: all 0.3s ease; /* Transisi halus */
-}
-
-.stButton > button:hover {
-    background-color: #FFFACD; /* Soft Yellow */
-    color: #E91E63; /* Slightly darker pink for hover */
+    cursor: pointer;
+    transition: all 0.3s ease;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
+.stButton > button:hover {
+    background-color: #fce8a6; /* Soft Yellow saat hover */
+    color: #8bb16f; /* Green lebih gelap saat hover */
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px); /* Efek sedikit terangkat */
+}
+
 .element-container {
-    background: #FFFFFF; /* Putih bersih */
-    border-radius: 16px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.08); /* Shadow lebih lembut */
-    padding: 12px;
-    margin-bottom: 25px;
+    background: #ffffff; /* Putih bersih */
+    border-radius: 18px; /* Border radius lebih besar */
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1); /* Shadow lebih jelas */
+    padding: 15px;
+    margin-bottom: 30px;
+    border: 1px solid #f0f0f0; /* Border sangat tipis untuk definisi */
 }
 
 /* Custom styles for selectbox, date input, and other widgets */
 .stSelectbox div[data-baseweb="select"] {
-    background-color: #FFFACD; /* Soft Yellow */
-    border-radius: 8px;
-    border: 1px solid #FFC0CB; /* Soft Pink border */
-}
-.stDateInput input {
-    background-color: #FFFACD; /* Soft Yellow */
-    border-radius: 8px;
-    border: 1px solid #FFC0CB; /* Soft Pink border */
-}
-.stFileUploader section {
-    background-color: #E0FFE0; /* Lighter Green */
+    background-color: #fff9e6; /* Sangat Soft Yellow */
     border-radius: 10px;
-    border: 1px dashed #4CAF50;
-    padding: 15px;
+    border: 1px solid #d4c1a5; /* Soft beige/brown border */
+    color: #3e3e3e;
+}
+.stSelectbox div[data-baseweb="select"] div[data-baseweb="select"] div[data-baseweb="select"] {
+    color: #3e3e3e; /* Warna teks dalam selectbox */
+}
+
+.stDateInput input {
+    background-color: #fff9e6; /* Sangat Soft Yellow */
+    border-radius: 10px;
+    border: 1px solid #d4c1a5; /* Soft beige/brown border */
+    color: #3e3e3e;
+}
+
+.stFileUploader section {
+    background-color: #e6f2e6; /* Sangat Soft Green */
+    border-radius: 12px;
+    border: 2px dashed #9bc489; /* Green yang lebih jelas */
+    padding: 20px;
+    text-align: center;
+    color: #5a7b48;
+}
+.stFileUploader label {
+    color: #5a7b48; /* Warna teks label file uploader */
+    font-weight: 600;
+}
+.stFileUploader .st-cf { /* Untuk tombol browse file */
+    background-color: #fce8a6; /* Soft Yellow */
+    color: #6a9955; /* Soft Green */
+    border-radius: 8px;
+    padding: 8px 15px;
+    font-size: 15px;
+    font-weight: 600;
 }
 </style>
 """
@@ -86,7 +113,7 @@ st.markdown("## 🐝 Campaign Analysis Dashboard 🌼")
 st.markdown("*Visualisasikan performa kampanye dan dapatkan insight yang bisa ditindaklanjuti!* 🍃")
 
 # --- File upload
-uploaded_file = st.file_uploader("📁 Unggah file CSV Anda", type=["csv"])
+uploaded_file = st.file_uploader("📁 Unggah file CSV Anda di sini:", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
     df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
@@ -101,7 +128,8 @@ if uploaded_file:
     df.dropna(subset=['date'], inplace=True)
 
     # --- Filters
-    st.markdown("### 🎯 Filter Data Anda ✏️")
+    st.markdown("---")
+    st.markdown("### 🎯 Atur Filter Data Anda ✏️")
     platforms = ['Semua'] + sorted(df['platform'].dropna().unique())
     sentiments = ['Semua'] + sorted(df['sentiment'].dropna().unique())
     locations = ['Semua'] + sorted(df['location'].dropna().unique())
@@ -131,14 +159,13 @@ if uploaded_file:
     # --- Helper insights
     def get_top_sentiments(df):
         if df.empty: return ["Tidak ada data sentimen. 😔"]
-        return [f"🔎 **{s}**: {c}" for s, c in df['sentiment'].value_counts().head(3).items()]
+        return [f"🔎 **{s}**: {c} entri" for s, c in df['sentiment'].value_counts().head(3).items()]
     
     def get_trends(df):
         if df.empty: return ["Tidak ada data tren. 📉"]
         trend = df.groupby('date')['engagements'].sum()
         if trend.empty: return ["Tidak ada data tren. 📉"]
         
-        # Ensure there's enough data for pct_change
         if len(trend) > 1:
             increase = trend.pct_change().fillna(0)
             recent_trend_icon = '⬆️' if increase.iloc[-1] > 0 else '⬇️' if increase.iloc[-1] < 0 else '↔️'
@@ -147,7 +174,7 @@ if uploaded_file:
             recent_trend_text = "📊 Data kurang untuk analisis tren. "
 
         top = trend.sort_values(ascending=False).head(3)
-        out = [f"📈 Tertinggi pada **{d.strftime('%Y-%m-%d')}**: **{v}**" for d, v in top.items()]
+        out = [f"📈 Engagement tertinggi pada **{d.strftime('%Y-%m-%d')}**: **{v}**" for d, v in top.items()]
         out.append(recent_trend_text)
         return out
     
@@ -164,15 +191,19 @@ if uploaded_file:
         return [f"📍 **{l}**: **{v}** engagement" for l, v in df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(3).items()]
 
     # --- Display charts
+    st.markdown("---")
     st.markdown("## 📊 Visualisasi & Insight Utama ✨")
     if filtered.empty:
         st.warning("Tidak ada data yang tersedia untuk filter yang dipilih. Coba sesuaikan filter Anda. 🧐")
     else:
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown("#### 🧁 Sentimen Kampanye")
-            fig1 = px.pie(filtered, names='sentiment', title='', color_discrete_sequence=px.colors.sequential.Plotly3) # Changed color palette
-            fig1.update_traces(textposition='inside', textinfo='percent+label', marker=dict(line=dict(color='#FFFFFF', width=1)))
+            st.markdown("#### 🧁 Distribusi Sentimen Kampanye")
+            # Pastikan colorscale konsisten dengan tema
+            fig1 = px.pie(filtered, names='sentiment', title='', 
+                          color_discrete_sequence=['#f7cac9', '#fce8a6', '#c6e2b4', '#a6c6a6']) # Pink, Yellow, Light Green, Medium Green
+            fig1.update_traces(textposition='inside', textinfo='percent+label', 
+                               marker=dict(line=dict(color='#FFFFFF', width=1.5)))
             st.plotly_chart(fig1, use_container_width=True)
             st.markdown("---")
             st.markdown("#### Insight Sentimen 💬")
@@ -182,8 +213,10 @@ if uploaded_file:
         with col2:
             st.markdown("#### 🌱 Tren Engagement Harian")
             trend = filtered.groupby('date')['engagements'].sum().reset_index()
-            fig2 = px.line(trend, x='date', y='engagements', line_shape='spline', markers=True, color_discrete_sequence=['#4CAF50']) # Soft Green line
-            fig2.update_layout(xaxis_title="Tanggal 🗓️", yaxis_title="Jumlah Engagement 👍")
+            fig2 = px.line(trend, x='date', y='engagements', line_shape='spline', markers=True, 
+                           color_discrete_sequence=['#6a9955']) # Soft Green line
+            fig2.update_layout(xaxis_title="Tanggal 🗓️", yaxis_title="Jumlah Engagement 👍",
+                               plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)') # Transparan
             st.plotly_chart(fig2, use_container_width=True)
             st.markdown("---")
             st.markdown("#### Insight Tren 📈")
@@ -196,8 +229,10 @@ if uploaded_file:
         with col3:
             st.markdown("#### 🌟 Engagement per Platform")
             platform_eng = filtered.groupby('platform')['engagements'].sum().reset_index()
-            fig3 = px.bar(platform_eng, x='platform', y='engagements', color='platform', color_discrete_sequence=px.colors.qualitative.Pastel) # Pastel colors
-            fig3.update_layout(xaxis_title="Platform 🌐", yaxis_title="Total Engagement 👍")
+            fig3 = px.bar(platform_eng, x='platform', y='engagements', color='platform', 
+                          color_discrete_sequence=['#6a9955', '#fce8a6', '#f7cac9', '#a6c6a6']) # Green, Yellow, Pink, Green
+            fig3.update_layout(xaxis_title="Platform 🌐", yaxis_title="Total Engagement 👍",
+                               plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)') # Transparan
             st.plotly_chart(fig3, use_container_width=True)
             st.markdown("---")
             st.markdown("#### Platform Teratas 🏆")
@@ -205,8 +240,10 @@ if uploaded_file:
                 st.markdown(f"- {p}")
         with col4:
             st.markdown("#### 📸 Distribusi Tipe Media")
-            fig4 = px.pie(filtered, names='media_type', title='', color_discrete_sequence=px.colors.sequential.RdPu) # Red-Purple sequence
-            fig4.update_traces(textposition='inside', textinfo='percent+label', marker=dict(line=dict(color='#FFFFFF', width=1)))
+            fig4 = px.pie(filtered, names='media_type', title='', 
+                          color_discrete_sequence=['#f7cac9', '#fce8a6', '#6a9955']) # Pink, Yellow, Green
+            fig4.update_traces(textposition='inside', textinfo='percent+label', 
+                               marker=dict(line=dict(color='#FFFFFF', width=1.5)))
             st.plotly_chart(fig4, use_container_width=True)
             st.markdown("---")
             st.markdown("#### Campuran Media 🖼️")
@@ -216,8 +253,10 @@ if uploaded_file:
         st.markdown("---")
         st.markdown("### 🗺️ Lokasi dengan Engagement Teratas")
         loc = filtered.groupby('location')['engagements'].sum().sort_values(ascending=False).head(5).reset_index()
-        fig5 = px.bar(loc, x='location', y='engagements', color='location', color_discrete_sequence=px.colors.qualitative.D3) # D3 colors
-        fig5.update_layout(xaxis_title="Lokasi 🌎", yaxis_title="Total Engagement 👍")
+        fig5 = px.bar(loc, x='location', y='engagements', color='location', 
+                      color_discrete_sequence=['#f7cac9', '#fce8a6', '#6a9955', '#e9a6a6', '#a6c6a6']) # Kombinasi tema
+        fig5.update_layout(xaxis_title="Lokasi 🌎", yaxis_title="Total Engagement 👍",
+                           plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)') # Transparan
         st.plotly_chart(fig5, use_container_width=True)
         st.markdown("---")
         st.markdown("#### Insight Lokasi 🏡")
@@ -228,14 +267,14 @@ if uploaded_file:
         class PDFReport(FPDF):
             def header(self):
                 self.set_font('Arial', 'B', 14)
-                self.set_text_color(76, 175, 80) # Soft Green
-                self.cell(0, 10, 'Laporan Insight Kampanye 🌼', 0, 1, 'C')
+                self.set_text_color(106, 153, 85) # Soft Green
+                self.cell(0, 10, 'Laporan Insight Kampanye Cottage 🌼', 0, 1, 'C')
                 self.ln(5)
             def chapter_title(self, title):
                 self.set_font('Arial', 'B', 12)
-                self.set_text_color(255, 192, 203) # Soft Pink
+                self.set_text_color(233, 166, 166) # Soft Pink
                 self.cell(0, 10, title, 0, 1)
-                self.set_text_color(0, 0, 0) # Back to black for body
+                self.set_text_color(62, 62, 62) # Darker text for body
             def chapter_body(self, body):
                 self.set_font('Arial', '', 11)
                 self.multi_cell(0, 7, body)
@@ -246,28 +285,6 @@ if uploaded_file:
                 self.set_text_color(100, 100, 100)
                 self.cell(0, 10, f'Halaman {self.page_no()}/{{nb}}', 0, 0, 'C')
 
-        def create_pdf():
-            pdf = PDFReport()
-            pdf.alias_nb_pages()
-            pdf.add_page()
-            
-            pdf.chapter_title("Ringkasan Sentimen Kampanye 💬")
-            pdf.chapter_body("\n".join(get_top_sentiments(filtered)))
-            
-            pdf.chapter_title("Tren Engagement Kampanye 📈")
-            pdf.chapter_body("\n".join(get_trends(filtered)))
-            
-            pdf.chapter_title("Platform Teratas Berdasarkan Engagement 📱")
-            pdf.chapter_body("\n".join(get_platforms(filtered)))
-            
-            pdf.chapter_title("Ringkasan Tipe Media 🎞️")
-            pdf.chapter_body("\n".join(get_media_mix(filtered)))
-            
-            pdf.chapter_title("Lokasi dengan Engagement Teratas 📍")
-            pdf.chapter_body("\n".join(get_locations(filtered)))
-            
-            return pdf.output(dest='S').encode('latin1')
-
         st.markdown("---")
         st.markdown("### 📤 Ekspor Laporan 📄")
         if st.button("Download Laporan PDF 📥"):
@@ -276,5 +293,5 @@ if uploaded_file:
             st.markdown(href, unsafe_allow_html=True)
             st.success("Laporan PDF Anda siap diunduh! 🎉")
 
-st.markdown("<hr><p style='text-align:center'>🌷 Semoga ini membantu!</p>", unsafe_allow_html=True)
+st.markdown("<hr><p style='text-align:center'>🌷 Semoga ini membantu!", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
