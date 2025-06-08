@@ -4,209 +4,204 @@ import plotly.express as px
 from fpdf import FPDF
 import base64
 
-# --- PDF generation helper ---
-class PDFReport(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 16)
-        self.set_text_color(34, 85, 34)
-        self.cell(0, 10, 'Interactive Media Intelligence Dashboard Report', 0, 1, 'C')
-
-    def chapter_title(self, title):
-        self.set_font('Arial', 'B', 12)
-        self.set_fill_color(255, 241, 196)
-        self.set_text_color(204, 0, 102)
-        self.cell(0, 10, title, 0, 1, 'L', 1)
-        self.ln(2)
-
-    def chapter_body(self, body):
-        self.set_font('Arial', '', 11)
-        self.set_text_color(51, 51, 51)
-        self.multi_cell(0, 10, body)
-        self.ln()
-
-# --- Insight functions ---
-def get_top_sentiments(df):
-    counts = df['sentiment'].value_counts().head(3)
-    return [f"{sentiment}: {count}" for sentiment, count in counts.items()]
-
-def get_engagement_trend_insights(df):
-    trend = df.groupby('date')['engagements'].sum()
-    increase = trend.pct_change().fillna(0)
-    top_dates = trend.sort_values(ascending=False).head(3)
-    insights = [f"Highest engagement on {date.strftime('%Y-%m-%d')}: {val}" for date, val in top_dates.items()]
-    change = increase.iloc[-1]
-    if change > 0:
-        insights.append(f"Engagements increased by {change*100:.2f}% recently")
-    else:
-        insights.append(f"Engagements decreased by {abs(change*100):.2f}% recently")
-    return insights[:3]
-
-def get_platform_engagements_insights(df):
-    platform_sum = df.groupby('platform')['engagements'].sum().sort_values(ascending=False).head(3)
-    return [f"{platform}: {val} engagements" for platform, val in platform_sum.items()]
-
-def get_media_type_mix_insights(df):
-    media_counts = df['media_type'].value_counts().head(3)
-    return [f"{media}: {count} entries" for media, count in media_counts.items()]
-
-def get_top_locations_insights(df):
-    location_sum = df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(3)
-    return [f"{location}: {val} engagements" for location, val in location_sum.items()]
-
-# --- Streamlit Config ---
-st.set_page_config(page_title="🌷 Campaign Dashboard", layout="wide", initial_sidebar_state="expanded")
-
-# --- CSS Styling ---
+# --- CSS: Cottage Flowery Theme with readability ---
 page_bg = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+
 body {
-    background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1470&q=80');
+    background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80');
     background-size: cover;
     background-attachment: fixed;
     font-family: 'Quicksand', sans-serif;
-    color: #37474f;
+    color: #2f2f2f;
 }
-.main {
-    background: rgba(255, 255, 255, 0.93);
+
+.main-container {
+    background: rgba(255, 255, 255, 0.92);
+    padding: 30px;
     border-radius: 20px;
-    padding: 30px 40px;
-    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
 }
+
 h1, h2, h3 {
-    background: linear-gradient(to right, #ffb6b9, #fae3d9, #b5ead7);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #4caf50;
     font-weight: 700;
 }
-h4 { color: #e91e63; font-weight: 600; }
-.stButton > button {
-    background-color: #ffcdd2;
-    color: #4e342e;
-    border-radius: 12px;
-    padding: 10px 22px;
-    font-weight: bold;
-    font-size: 16px;
-    border: none;
-    box-shadow: 0 4px 8px rgba(255,182,193, 0.4);
-    transition: all 0.3s ease;
+
+h4 {
+    color: #e91e63;
 }
+
+.stButton > button {
+    background-color: #ffcccb;
+    color: #2e7d32;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 20px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
 .stButton > button:hover {
     background-color: #ffe0b2;
-    color: #2e7d32;
+    color: #1b5e20;
 }
-.stMarkdown p {
-    font-size: 1.1rem;
-    line-height: 1.6;
-    color: #455a64;
+
+.element-container {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+    padding: 12px;
+    margin-bottom: 25px;
 }
 </style>
 """
+
+st.set_page_config(page_title="🌷 Cottage Campaign Dashboard", layout="wide")
 st.markdown(page_bg, unsafe_allow_html=True)
-st.markdown('<div class="main">', unsafe_allow_html=True)
 
-st.markdown("## 🪷 **Campaign Analysis** 🐝")
-st.markdown("*Visualizing campaign performance and extracting actionable insights.* 🍃")
+st.markdown('<div class="main-container">', unsafe_allow_html=True)
+st.markdown("## 🐝 Campaign Analysis Dashboard 🌼")
+st.markdown("*Visualize campaign performance and extract actionable insights.* 🍃")
 
-uploaded_file = st.file_uploader("Upload your CSV", type=["csv"])
+# --- File upload
+uploaded_file = st.file_uploader("📁 Upload your CSV", type=["csv"])
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
-    required_cols = ['date', 'platform', 'sentiment', 'location', 'engagements', 'media_type']
-    if not all(col in df.columns for col in required_cols):
-        st.error(f"Missing columns: {required_cols}")
+    df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
+
+    required = ['date', 'platform', 'sentiment', 'location', 'engagements', 'media_type']
+    if not all(col in df.columns for col in required):
+        st.error(f"Missing required columns: {list(df.columns)}")
         st.stop()
 
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    df.dropna(subset=['date'], inplace=True)
     df['engagements'] = pd.to_numeric(df['engagements'], errors='coerce').fillna(0).astype(int)
+    df.dropna(subset=['date'], inplace=True)
 
-    # Filters
-    st.markdown("## 🎯 Filter Your Data ✏️")
+    # --- Filters
+    st.markdown("### 🎯 Filter Your Data ✏️")
+    platforms = ['All'] + sorted(df['platform'].dropna().unique())
+    sentiments = ['All'] + sorted(df['sentiment'].dropna().unique())
+    locations = ['All'] + sorted(df['location'].dropna().unique())
+    media_types = ['All'] + sorted(df['media_type'].dropna().unique())
+
     col1, col2, col3, col4 = st.columns(4)
-    platforms = ['All Platforms'] + sorted(df['platform'].dropna().unique())
-    sentiments = ['All Sentiments'] + sorted(df['sentiment'].dropna().unique())
-    locations = ['All Locations'] + sorted(df['location'].dropna().unique())
-    media_types = ['All Media Types'] + sorted(df['media_type'].dropna().unique())
-    with col1:
-        selected_platform = st.selectbox("Platform", platforms)
-    with col2:
-        selected_sentiment = st.selectbox("Sentiment", sentiments)
-    with col3:
-        selected_location = st.selectbox("Location", locations)
-    with col4:
-        selected_media = st.selectbox("Media Type", media_types)
+    f_platform = col1.selectbox("Platform", platforms)
+    f_sentiment = col2.selectbox("Sentiment", sentiments)
+    f_location = col3.selectbox("Location", locations)
+    f_media = col4.selectbox("Media Type", media_types)
+
     col5, col6 = st.columns(2)
-    with col5:
-        start_date = st.date_input("Start Date", df['date'].min().date())
-    with col6:
-        end_date = st.date_input("End Date", df['date'].max().date())
+    start_date = col5.date_input("Start Date", df['date'].min().date())
+    end_date = col6.date_input("End Date", df['date'].max().date())
 
-    filtered_df = df.copy()
-    if selected_platform != 'All Platforms':
-        filtered_df = filtered_df[filtered_df['platform'] == selected_platform]
-    if selected_sentiment != 'All Sentiments':
-        filtered_df = filtered_df[filtered_df['sentiment'] == selected_sentiment]
-    if selected_location != 'All Locations':
-        filtered_df = filtered_df[filtered_df['location'] == selected_location]
-    if selected_media != 'All Media Types':
-        filtered_df = filtered_df[filtered_df['media_type'] == selected_media]
-    filtered_df = filtered_df[(filtered_df['date'].dt.date >= start_date) & (filtered_df['date'].dt.date <= end_date)]
+    filtered = df.copy()
+    if f_platform != 'All':
+        filtered = filtered[filtered['platform'] == f_platform]
+    if f_sentiment != 'All':
+        filtered = filtered[filtered['sentiment'] == f_sentiment]
+    if f_location != 'All':
+        filtered = filtered[filtered['location'] == f_location]
+    if f_media != 'All':
+        filtered = filtered[filtered['media_type'] == f_media]
+    filtered = filtered[(filtered['date'].dt.date >= start_date) & (filtered['date'].dt.date <= end_date)]
 
-    st.markdown("### Cleaned Data Preview")
-    st.dataframe(filtered_df.head())
+    # --- Helper insights
+    def get_top_sentiments(df):
+        return [f"🔎 {s}: {c}" for s, c in df['sentiment'].value_counts().head(3).items()]
+    
+    def get_trends(df):
+        trend = df.groupby('date')['engagements'].sum()
+        increase = trend.pct_change().fillna(0)
+        top = trend.sort_values(ascending=False).head(3)
+        out = [f"📈 Highest on {d.strftime('%Y-%m-%d')}: {v}" for d, v in top.items()]
+        out.append(f"📊 Recent trend: {'⬆️' if increase.iloc[-1]>0 else '⬇️'} {abs(increase.iloc[-1]*100):.2f}%")
+        return out
+    
+    def get_platforms(df):
+        return [f"📱 {p}: {v} engagements" for p, v in df.groupby('platform')['engagements'].sum().sort_values(ascending=False).head(3).items()]
+    
+    def get_media_mix(df):
+        return [f"🎞️ {m}: {v} entries" for m, v in df['media_type'].value_counts().head(3).items()]
+    
+    def get_locations(df):
+        return [f"📍 {l}: {v} engagements" for l, v in df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(3).items()]
 
-    st.markdown("### Sentiment Breakdown 🌸")
-    st.plotly_chart(px.pie(filtered_df, names='sentiment', title="Sentiment Breakdown"), use_container_width=True)
-    for insight in get_top_sentiments(filtered_df):
-        st.markdown(f"- {insight}")
+    # --- Display charts
+    st.markdown("## 📊 Visualizations")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### 🧁 Sentiment Breakdown")
+        fig1 = px.pie(filtered, names='sentiment', title='', color_discrete_sequence=px.colors.sequential.Pinkyl)
+        st.plotly_chart(fig1, use_container_width=True)
+        for s in get_top_sentiments(filtered):
+            st.markdown(f"- {s}")
+    
+    with col2:
+        st.markdown("#### 🌱 Engagement Trend")
+        trend = filtered.groupby('date')['engagements'].sum().reset_index()
+        fig2 = px.line(trend, x='date', y='engagements', line_shape='spline', markers=True)
+        st.plotly_chart(fig2, use_container_width=True)
+        for t in get_trends(filtered):
+            st.markdown(f"- {t}")
 
-    st.markdown("### Engagement Trend 📈")
-    trend_df = filtered_df.groupby('date')['engagements'].sum().reset_index()
-    fig = px.line(trend_df, x='date', y='engagements', title="Engagement Trend Over Time")
-    st.plotly_chart(fig, use_container_width=True)
-    for insight in get_engagement_trend_insights(filtered_df):
-        st.markdown(f"- {insight}")
+    st.markdown("### 🗂️ Platforms & Media")
+    col3, col4 = st.columns(2)
+    with col3:
+        fig3 = px.bar(filtered.groupby('platform')['engagements'].sum().reset_index(), x='platform', y='engagements', color='platform')
+        st.plotly_chart(fig3, use_container_width=True)
+        for p in get_platforms(filtered):
+            st.markdown(f"- {p}")
+    with col4:
+        fig4 = px.pie(filtered, names='media_type', title='', color_discrete_sequence=px.colors.sequential.RdPu)
+        st.plotly_chart(fig4, use_container_width=True)
+        for m in get_media_mix(filtered):
+            st.markdown(f"- {m}")
 
-    st.markdown("### Platform Engagements 🧩")
-    platform_df = filtered_df.groupby('platform')['engagements'].sum().reset_index()
-    st.plotly_chart(px.bar(platform_df, x='platform', y='engagements', title="Platform Engagements"), use_container_width=True)
-    for insight in get_platform_engagements_insights(filtered_df):
-        st.markdown(f"- {insight}")
+    st.markdown("### 📍 Top Locations")
+    loc = filtered.groupby('location')['engagements'].sum().sort_values(ascending=False).head(5).reset_index()
+    fig5 = px.bar(loc, x='location', y='engagements', color='location')
+    st.plotly_chart(fig5, use_container_width=True)
+    for l in get_locations(filtered):
+        st.markdown(f"- {l}")
 
-    st.markdown("### Media Type Mix 🖼️")
-    st.plotly_chart(px.pie(filtered_df, names='media_type', title="Media Type Mix"), use_container_width=True)
-    for insight in get_media_type_mix_insights(filtered_df):
-        st.markdown(f"- {insight}")
-
-    st.markdown("### Top Locations 📍")
-    loc_df = filtered_df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(5).reset_index()
-    st.plotly_chart(px.bar(loc_df, x='location', y='engagements', title="Top 5 Locations"), use_container_width=True)
-    for insight in get_top_locations_insights(filtered_df):
-        st.markdown(f"- {insight}")
+    # --- PDF Generator
+    class PDFReport(FPDF):
+        def header(self):
+            self.set_font('Arial', 'B', 14)
+            self.cell(0, 10, 'Campaign Insights Report 🌼', 0, 1, 'C')
+        def chapter_title(self, title):
+            self.set_font('Arial', 'B', 12)
+            self.cell(0, 10, title, 0, 1)
+        def chapter_body(self, body):
+            self.set_font('Arial', '', 11)
+            self.multi_cell(0, 10, body)
+            self.ln()
 
     def create_pdf():
         pdf = PDFReport()
         pdf.add_page()
         pdf.chapter_title("Sentiment Insights")
-        pdf.chapter_body("\n".join(get_top_sentiments(filtered_df)))
-        pdf.chapter_title("Engagement Trend")
-        pdf.chapter_body("\n".join(get_engagement_trend_insights(filtered_df)))
-        pdf.chapter_title("Platform Insights")
-        pdf.chapter_body("\n".join(get_platform_engagements_insights(filtered_df)))
-        pdf.chapter_title("Media Types")
-        pdf.chapter_body("\n".join(get_media_type_mix_insights(filtered_df)))
+        pdf.chapter_body("\n".join(get_top_sentiments(filtered)))
+        pdf.chapter_title("Engagement Trends")
+        pdf.chapter_body("\n".join(get_trends(filtered)))
+        pdf.chapter_title("Top Platforms")
+        pdf.chapter_body("\n".join(get_platforms(filtered)))
+        pdf.chapter_title("Media Type Summary")
+        pdf.chapter_body("\n".join(get_media_mix(filtered)))
         pdf.chapter_title("Top Locations")
-        pdf.chapter_body("\n".join(get_top_locations_insights(filtered_df)))
+        pdf.chapter_body("\n".join(get_locations(filtered)))
         return pdf.output(dest='S').encode('latin1')
 
-    st.markdown("### Export Report to PDF 📄")
-    if st.button("Export to PDF"):
-        pdf_bytes = create_pdf()
-        b64 = base64.b64encode(pdf_bytes).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="dashboard_report.pdf">📥 Download PDF Report</a>'
+    st.markdown("### 📤 Export")
+    if st.button("📄 Export to PDF"):
+        b64 = base64.b64encode(create_pdf()).decode()
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="campaign_report.pdf">📥 Download PDF Report</a>'
         st.markdown(href, unsafe_allow_html=True)
 
-st.markdown("<br><p style='text-align:center; font-size:16px;'>🌸 Hope this analysis is helpful! 🐰🌼<br><small>Made by Zulfa Nur Alina Putri</small></p>", unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("<hr><p style='text-align:center'>🌷 Hope this helped! Made with 💗 by Zulfa 🐣</p>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
+
 
