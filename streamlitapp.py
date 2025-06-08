@@ -1,232 +1,216 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
 from fpdf import FPDF
-import io
+import base64
 
-# --- Theme colors & fonts for cottage flowery vibe ---
-PRIMARY_COLOR = "#A7C7E7"  # soft blue
-SECONDARY_COLOR = "#F6E2B3"  # soft yellow
-ACCENT_COLOR = "#D9A5B3"  # dusty rose
-BG_COLOR = "#FFF9F4"  # cream background
-FONT_FAMILY = "Georgia, serif"
-
-REQUIRED_COLUMNS = ['date', 'platform', 'sentiment', 'location', 'engagements', 'media type']
-
-def style():
-    st.markdown(
-        f"""
-        <style>
-        .reportview-container {{
-            background-color: {BG_COLOR};
-            font-family: {FONT_FAMILY};
-        }}
-        .sidebar .sidebar-content {{
-            background-color: {SECONDARY_COLOR};
-            font-family: {FONT_FAMILY};
-        }}
-        h1, h2, h3, h4 {{
-            color: {ACCENT_COLOR};
-            font-family: {FONT_FAMILY};
-        }}
-        .stButton>button {{
-            background-color: {ACCENT_COLOR};
-            color: white;
-            font-weight: bold;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-def validate_columns(df):
-    cols = [c.strip().lower() for c in df.columns]
-    missing = [col for col in REQUIRED_COLUMNS if col not in cols]
-    return missing, cols
-
-def clean_data(df):
-    df.columns = df.columns.str.strip().str.lower()
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    df['engagements'] = pd.to_numeric(df['engagements'], errors='coerce').fillna(0).astype(int)
-    for col in ['platform', 'sentiment', 'location', 'media type']:
-        df[col] = df[col].astype(str).str.strip()
-    return df
-
-def get_top_insights_sentiment(df):
+# --- Helper functions for insights ---
+def get_top_sentiments(df):
     counts = df['sentiment'].value_counts().head(3)
-    return [f"{i+1}. {idx} sentiment appears {val} times" for i, (idx, val) in enumerate(counts.items())]
+    return [f"{sentiment}: {count}" for sentiment, count in counts.items()]
 
-def get_top_insights_engagement_trend(df):
-    monthly = df.groupby(pd.Grouper(key='date', freq='M'))['engagements'].sum()
-    top_months = monthly.sort_values(ascending=False).head(3)
-    return [f"{i+1}. {d.strftime('%b %Y')} has {val} engagements" for i, (d, val) in enumerate(top_months.items())]
-
-def get_top_insights_platform(df):
-    platform_sum = df.groupby('platform')['engagements'].sum().sort_values(ascending=False).head(3)
-    return [f"{i+1}. Platform '{idx}' has {val} total engagements" for i, (idx, val) in enumerate(platform_sum.items())]
-
-def get_top_insights_media_type(df):
-    media_counts = df['media type'].value_counts().head(3)
-    return [f"{i+1}. Media Type '{idx}' appears {val} times" for i, (idx, val) in enumerate(media_counts.items())]
-
-def get_top_insights_location(df):
-    loc_sum = df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(3)
-    return [f"{i+1}. Location '{idx}' has {val} total engagements" for i, (idx, val) in enumerate(loc_sum.items())]
-
-def generate_pdf(summary_texts, insights, filename="Media_Intelligence_Summary.pdf"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Times", 'B', 18)
-    pdf.set_text_color(217, 165, 179)  # dusty rose
-    pdf.cell(0, 10, "🌸 Media Intelligence Dashboard Summary 🌸", ln=True, align='C')
-    pdf.ln(10)
-
-    pdf.set_font("Times", '', 12)
-    for section, texts in summary_texts.items():
-        pdf.set_text_color(167, 199, 231)  # soft blue
-        pdf.cell(0, 10, section, ln=True)
-        pdf.set_text_color(0, 0, 0)
-        for line in texts:
-            pdf.multi_cell(0, 8, line)
-        pdf.ln(5)
-
-    pdf.set_text_color(217, 165, 179)
-    pdf.cell(0, 10, "Campaign Strategy Summary", ln=True)
-    pdf.set_text_color(0, 0, 0)
-    for line in insights:
-        pdf.multi_cell(0, 8, line)
-
-    pdf.ln(10)
-    pdf.set_font("Times", 'I', 12)
-    pdf.cell(0, 10, "Thank you for using the Interactive Media Intelligence Dashboard. Hope this helps your campaign strategy!", ln=True, align='C')
-
-    pdf_output = io.BytesIO()
-    pdf.output(pdf_output)
-    pdf_output.seek(0)
-    return pdf_output
-
-def main():
-    st.set_page_config(page_title="Interactive Media Intelligence Dashboard", layout="wide", page_icon="🌸")
-    style()
-
-    st.title("🌸 Interactive Media Intelligence Dashboard 🌸")
-    st.markdown("### Step 1: Upload CSV File with columns: Date, Platform, Sentiment, Location, Engagements, Media Type")
-
-    uploaded_file = st.file_uploader("Upload CSV file here", type=['csv'])
-
-    if uploaded_file:
-        try:
-            df = pd.read_csv(uploaded_file, encoding='utf-8')
-        except UnicodeDecodeError:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, encoding='latin1')
-        except Exception as e:
-            st.error(f"Failed to read CSV: {e}")
-            return
-
-        missing_cols, cols = validate_columns(df)
-        if missing_cols:
-            st.error(f"Missing required columns: {missing_cols}")
-            st.write("Detected columns:", cols)
-            return
-
-        st.markdown("### Step 2: Clean Data")
-        df = clean_data(df)
-        st.write("Sample cleaned data:")
-        st.dataframe(df.head())
-
-        st.markdown("### Step 3: Visualizations")
-
-        st.markdown("#### Sentiment Breakdown")
-        fig1 = px.pie(df, names='sentiment', title="Sentiment Breakdown", color_discrete_sequence=px.colors.sequential.Rose)
-        st.plotly_chart(fig1, use_container_width=True)
-        sentiment_insights = get_top_insights_sentiment(df)
-        st.markdown("**Top 3 Sentiment Insights:**")
-        for insight in sentiment_insights:
-            st.write("- " + insight)
-
-        st.markdown("#### Engagement Trend Over Time")
-        engagement_time = df.groupby('date')['engagements'].sum().reset_index()
-        fig2 = px.line(engagement_time, x='date', y='engagements',
-                       title="Engagements Over Time",
-                       markers=True,
-                       color_discrete_sequence=[ACCENT_COLOR])
-        st.plotly_chart(fig2, use_container_width=True)
-        engagement_insights = get_top_insights_engagement_trend(df)
-        st.markdown("**Top 3 Engagement Trend Insights:**")
-        for insight in engagement_insights:
-            st.write("- " + insight)
-
-        st.markdown("#### Platform Engagements")
-        platform_eng = df.groupby('platform')['engagements'].sum().reset_index().sort_values(by='engagements', ascending=False)
-        fig3 = px.bar(platform_eng, x='platform', y='engagements',
-                      title="Platform Engagements",
-                      color='engagements',
-                      color_continuous_scale='Pinkyl')
-        st.plotly_chart(fig3, use_container_width=True)
-        platform_insights = get_top_insights_platform(df)
-        st.markdown("**Top 3 Platform Insights:**")
-        for insight in platform_insights:
-            st.write("- " + insight)
-
-        st.markdown("#### Media Type Mix")
-        fig4 = px.pie(df, names='media type', title="Media Type Mix", color_discrete_sequence=px.colors.sequential.Pinkyl)
-        st.plotly_chart(fig4, use_container_width=True)
-        media_insights = get_top_insights_media_type(df)
-        st.markdown("**Top 3 Media Type Insights:**")
-        for insight in media_insights:
-            st.write("- " + insight)
-
-        st.markdown("#### Top 5 Locations by Engagements")
-        top_loc = df.groupby('location')['engagements'].sum().reset_index().sort_values(by='engagements', ascending=False).head(5)
-        fig5 = px.bar(top_loc, x='location', y='engagements',
-                      title="Top 5 Locations by Engagements",
-                      color='engagements',
-                      color_continuous_scale='RdPu')
-        st.plotly_chart(fig5, use_container_width=True)
-        location_insights = get_top_insights_location(df)
-        st.markdown("**Top 3 Location Insights:**")
-        for insight in location_insights:
-            st.write("- " + insight)
-
-        # Step 4: Campaign Strategy Summary (simple text based on data)
-        st.markdown("### Step 4: Campaign Strategy Summary")
-        strategy_points = [
-            "1. Focus on boosting positive sentiment channels to enhance brand reputation.",
-            "2. Optimize campaign timing during months with highest engagement trends.",
-            "3. Prioritize platforms with highest engagement for targeted ad spend.",
-            "4. Diversify media types but emphasize those with highest audience reach.",
-            "5. Allocate resources strategically to top-performing locations."
-        ]
-        for point in strategy_points:
-            st.write(point)
-
-        # Step 5: Download as PDF
-        st.markdown("### Step 5: Download Summary as PDF")
-        summary_texts = {
-            "Sentiment Insights": sentiment_insights,
-            "Engagement Trend Insights": engagement_insights,
-            "Platform Insights": platform_insights,
-            "Media Type Insights": media_insights,
-            "Location Insights": location_insights,
-        }
-        pdf_file = generate_pdf(summary_texts, strategy_points)
-
-        st.download_button(
-            label="📥 Download PDF Summary",
-            data=pdf_file,
-            file_name="Media_Intelligence_Summary.pdf",
-            mime="application/pdf"
-        )
-
-        # Step 6: Closing statement
-        st.markdown("### Thank you!")
-        st.info("Thank you for using the Interactive Media Intelligence Dashboard. Hope this helps your campaign strategy! 🌸")
-
+def get_engagement_trend_insights(df):
+    trend = df.groupby('date')['engagements'].sum()
+    increase = trend.pct_change().fillna(0)
+    top_dates = trend.sort_values(ascending=False).head(3)
+    insights = [f"Highest engagement on {date.strftime('%Y-%m-%d')}: {val}" for date, val in top_dates.items()]
+    if increase.iloc[-1] > 0:
+        insights.append(f"Engagements increased by {increase.iloc[-1]*100:.2f}% recently")
     else:
-        st.info("Please upload a CSV file to proceed.")
+        insights.append(f"Engagements decreased by {abs(increase.iloc[-1]*100):.2f}% recently")
+    return insights[:3]
 
-if __name__ == "__main__":
-    main()
+def get_platform_engagements_insights(df):
+    platform_sum = df.groupby('platform')['engagements'].sum().sort_values(ascending=False).head(3)
+    return [f"{platform}: {val} engagements" for platform, val in platform_sum.items()]
 
+def get_media_type_mix_insights(df):
+    media_counts = df['media_type'].value_counts().head(3)
+    return [f"{media}: {count} entries" for media, count in media_counts.items()]
+
+def get_top_locations_insights(df):
+    location_sum = df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(3)
+    return [f"{location}: {val} engagements" for location, val in location_sum.items()]
+
+# --- PDF generation helper ---
+class PDFReport(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 10, 'Interactive Media Intelligence Dashboard Report', 0, 1, 'C')
+
+    def chapter_title(self, title):
+        self.set_font('Arial', 'B', 12)
+        self.set_fill_color(255, 228, 225)
+        self.cell(0, 10, title, 0, 1, 'L', 1)
+        self.ln(4)
+
+    def chapter_body(self, body):
+        self.set_font('Arial', '', 11)
+        self.multi_cell(0, 10, body)
+        self.ln()
+
+# --- Streamlit UI and logic ---
+st.set_page_config(
+    page_title="🌸 Interactive Media Intelligence Dashboard 🌸",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+page_bg = """
+<style>
+    body {
+        background-image: url("https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1470&q=80");
+        background-size: cover;
+        background-attachment: fixed;
+        font-family: 'Comic Sans MS', cursive, sans-serif;
+        color: #6b4c3b;
+    }
+    .stButton>button {
+        background-color: #f7c5cc;
+        color: #6b4c3b;
+        border-radius: 12px;
+        padding: 8px 18px;
+        font-weight: bold;
+        font-size: 16px;
+    }
+    h1, h2, h3, h4 {
+        color: #a04e4e;
+    }
+    .stMarkdown h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+    }
+</style>
+"""
+st.markdown(page_bg, unsafe_allow_html=True)
+
+st.markdown("# 🌸 Interactive Media Intelligence Dashboard 🌸")
+st.markdown("Upload your CSV file to begin your media insights journey! ✨🌼")
+
+uploaded_file = st.file_uploader(
+    "Upload CSV file (Date, Platform, Sentiment, Location, Engagements, Media Type) 📁",
+    type=["csv"]
+)
+
+if uploaded_file:
+    st.markdown("## Step 1 & 2: Data Cleaning and Normalization 🧹")
+    df = pd.read_csv(uploaded_file)
+    df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+    required_cols = ['date', 'platform', 'sentiment', 'location', 'engagements', 'media_type']
+    if not all(col in df.columns for col in required_cols):
+        st.error(f"CSV missing required columns. Found columns: {list(df.columns)}")
+        st.stop()
+
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    if df['date'].isnull().any():
+        st.warning("Some dates could not be parsed and will be dropped.")
+        df = df.dropna(subset=['date'])
+
+    df['engagements'] = pd.to_numeric(df['engagements'], errors='coerce').fillna(0).astype(int)
+
+    st.success("Data cleaned successfully! Here's a preview:")
+    st.dataframe(df.head())
+
+    st.markdown("## Step 3: Interactive Charts 📊")
+
+    # Sentiment Pie
+    st.markdown("### Sentiment Breakdown 🥧")
+    fig_sentiment = px.pie(df, names='sentiment', title="Sentiment Breakdown", color_discrete_sequence=px.colors.qualitative.Pastel)
+    st.plotly_chart(fig_sentiment, use_container_width=True)
+    insights_sentiment = get_top_sentiments(df)
+    st.markdown("**Top 3 Sentiment Insights:**")
+    for insight in insights_sentiment:
+        st.markdown(f"- {insight}")
+
+    # Engagement trend line chart
+    st.markdown("### Engagement Trend Over Time 📈")
+    df_sorted = df.sort_values('date')
+    engagement_trend = df_sorted.groupby('date')['engagements'].sum().reset_index()
+    fig_engagement = px.line(engagement_trend, x='date', y='engagements', title="Engagement Trend Over Time", line_shape='spline', markers=True)
+    st.plotly_chart(fig_engagement, use_container_width=True)
+    insights_engagement = get_engagement_trend_insights(df)
+    st.markdown("**Top 3 Engagement Trend Insights:**")
+    for insight in insights_engagement:
+        st.markdown(f"- {insight}")
+
+    # Platform engagement bar chart
+    st.markdown("### Platform Engagements 📊")
+    platform_engagement = df.groupby('platform')['engagements'].sum().reset_index().sort_values('engagements', ascending=False)
+    fig_platform = px.bar(platform_engagement, x='platform', y='engagements', title="Platform Engagements", color='platform', color_discrete_sequence=px.colors.qualitative.Pastel)
+    st.plotly_chart(fig_platform, use_container_width=True)
+    insights_platform = get_platform_engagements_insights(df)
+    st.markdown("**Top 3 Platform Engagement Insights:**")
+    for insight in insights_platform:
+        st.markdown(f"- {insight}")
+
+    # Media type pie chart
+    st.markdown("### Media Type Mix 🥧")
+    fig_media = px.pie(df, names='media_type', title="Media Type Mix", color_discrete_sequence=px.colors.qualitative.Pastel)
+    st.plotly_chart(fig_media, use_container_width=True)
+    insights_media = get_media_type_mix_insights(df)
+    st.markdown("**Top 3 Media Type Insights:**")
+    for insight in insights_media:
+        st.markdown(f"- {insight}")
+
+    # Top 5 locations bar chart
+    st.markdown("### Top 5 Locations by Engagements 📍")
+    top_locations = df.groupby('location')['engagements'].sum().sort_values(ascending=False).head(5).reset_index()
+    fig_location = px.bar(top_locations, x='location', y='engagements', title="Top 5 Locations by Engagements", color='location', color_discrete_sequence=px.colors.qualitative.Pastel)
+    st.plotly_chart(fig_location, use_container_width=True)
+    insights_location = get_top_locations_insights(df)
+    st.markdown("**Top 3 Location Insights:**")
+    for insight in insights_location:
+        st.markdown(f"- {insight}")
+
+    # Step 8: Strategy ideas
+    st.markdown("## Step 8: Strategy Ideas 💡")
+    summary_text = """
+    - Focus on platforms and media types generating the highest engagements to maximize ROI.
+    - Monitor sentiment trends closely and tailor content to improve positive sentiment.
+    - Target top-performing locations with geo-focused campaigns.
+    - Increase engagement during dates with historically lower interactions using special content or promotions.
+    """
+    st.markdown(summary_text)
+
+    # Step 9: Closing statement
+    st.markdown("## Closing Statement ✨")
+    st.markdown("Hope it helps ^^ 🌸🌼")
+
+    # Step 7: PDF download
+    st.markdown("## Download Report as PDF 📥")
+
+    def create_pdf():
+        pdf = PDFReport()
+        pdf.add_page()
+        pdf.chapter_title("Interactive Media Intelligence Dashboard Report")
+        pdf.chapter_body("This report summarizes the data insights and visualizations generated.")
+
+        pdf.chapter_title("Sentiment Breakdown Insights")
+        pdf.chapter_body("\n".join(insights_sentiment))
+
+        pdf.chapter_title("Engagement Trend Insights")
+        pdf.chapter_body("\n".join(insights_engagement))
+
+        pdf.chapter_title("Platform Engagement Insights")
+        pdf.chapter_body("\n".join(insights_platform))
+
+        pdf.chapter_title("Media Type Insights")
+        pdf.chapter_body("\n".join(insights_media))
+
+        pdf.chapter_title("Top Locations Insights")
+        pdf.chapter_body("\n".join(insights_location))
+
+        pdf.chapter_title("Strategy Ideas")
+        pdf.chapter_body(summary_text)
+
+        pdf.chapter_title("Closing Statement")
+        pdf.chapter_body("Hope it helps ^^ 🌸🌼")
+
+        return pdf.output(dest='S').encode('latin1')
+
+    if st.button("Generate PDF Report"):
+        pdf_bytes = create_pdf()
+        b64 = base64.b64encode(pdf_bytes).decode()
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="media_dashboard_report.pdf">📥 Click here to download your PDF report</a>'
+        st.markdown(href, unsafe_allow_html=True)
