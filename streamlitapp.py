@@ -276,5 +276,5 @@ if uploaded_file:
             st.markdown(href, unsafe_allow_html=True)
             st.success("Laporan PDF Anda siap diunduh! 🎉")
 
-st.markdown("<hr><p style='text-align:center'>🌷 Semoga ini membantu! Dibuat dengan ❤️ oleh Zulfa 🐣</p>", unsafe_allow_html=True)
+st.markdown("<hr><p style='text-align:center'>🌷 Semoga ini membantu!</p>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
